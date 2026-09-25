@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestão de Projetos</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>Gestão de Projetos</h1>
+  <div class="topbar-actions">
+    <button id="btn-new-project" class="btn btn-primary">+ Novo projeto</button>
+    <div class="file-actions">
+      <button id="btn-open-file" class="btn" title="Abrir um arquivo dados.json salvo no pendrive">Abrir arquivo do pendrive</button>
+      <button id="btn-save-file" class="btn" title="Salvar os dados atuais no arquivo vinculado" disabled>Salvar no arquivo</button>
+      <button id="btn-export" class="btn" title="Baixar um backup em .json">Exportar backup</button>
+      <button id="btn-import" class="btn" title="Carregar um backup em .json">Importar backup</button>
+      <input type="file" id="import-input" accept="application/json" hidden>
+    </div>
+  </div>
+</header>
+
+<div id="status-bar" class="status-bar"></div>
+
+<main class="layout">
+  <aside class="sidebar">
+    <div class="summary" id="summary"></div>
+    <div id="project-list" class="project-list"></div>
+  </aside>
+
+  <section id="detail" class="detail">
+    <div class="empty-state">
+      <p>Selecione um projeto na lista ao lado ou crie um novo projeto para começar.</p>
+    </div>
+  </section>
+</main>
+
+<template id="tpl-project-card">
+  <div class="project-card">
+    <div class="project-card-header">
+      <span class="project-card-name"></span>
+      <span class="badge status-badge"></span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill"></div></div>
+    <div class="project-card-meta"></div>
+  </div>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>

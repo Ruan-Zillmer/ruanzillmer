@@ -57,7 +57,13 @@ Nesse caso não dá para o app ler/gravar direto num arquivo dentro do Drive pel
 
 - Cadastro de projetos: nome, descrição, categoria, **prioridade** (baixa/média/alta/urgente), status, data inicial e prazo.
 - **Responsável pelo projeto** e **quem solicitou** o projeto.
-- **Metodologia/ferramenta de gestão** usada (sugestões: Kanban, Scrum, PDCA, 5W2H, Cronograma/Gantt, PMBOK, Ágil, Waterfall — ou digite outra).
+- **Metodologia/ferramenta de gestão** usada (sugestões: Kanban, Scrum, PDCA, 5W2H, Cronograma/Gantt, PMBOK, Ágil, Waterfall — ou digite outra). Ao escolher uma delas, aparece uma seção "Ferramentas da metodologia" com a explicação de cada ferramenta típica **e uma versão funcional dela integrada às tarefas do projeto**:
+  - **Kanban** e **Ágil** → quadro com colunas A fazer / Em andamento / Concluído.
+  - **Scrum** → quadro Backlog / Sprint atual.
+  - **PDCA** → formulário com os 4 campos do ciclo (Planejar, Fazer, Checar, Agir).
+  - **5W2H** → formulário com as 7 perguntas (O quê, Por quê, Onde, Quando, Quem, Como, Quanto custa).
+  - **Cronograma/Gantt** → linha do tempo com data de início/fim de cada tarefa.
+  - **PMBOK** e **Waterfall** → checklist das fases/grupos de processo de cada um.
 - **Importância do projeto**: campo livre para justificar por que fazê-lo e que valor ele agrega à empresa.
 - Avanço do projeto: pode ser controlado manualmente (barra deslizante) ou automaticamente, criando uma lista de tarefas/etapas — o avanço passa a ser calculado pela proporção de tarefas concluídas.
 - Cada tarefa tem um **responsável pela etapa**, uma descrição livre (para registrar o que foi feito) e pode ter subtarefas; quando há subtarefas, a tarefa é marcada como concluída automaticamente ao concluir todas elas.

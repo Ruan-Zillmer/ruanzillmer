@@ -24,6 +24,94 @@ const METHODOLOGY_SUGGESTIONS = ['Kanban', 'Scrum', 'PDCA', '5W2H', 'Cronograma 
 
 const MATERIAL_CATEGORY_SUGGESTIONS = ['Elétrica', 'Mecânica', 'Hidráulica', 'Automação', 'Estrutural', 'Outros'];
 
+// Cada metodologia lista suas ferramentas típicas (com explicação) e qual "widget" integrado
+// usar as tarefas/dados do próprio projeto para viabilizar aquela ferramenta na prática.
+const METHODOLOGY_INFO = {
+  kanban: {
+    label: 'Kanban',
+    summary: 'Gestão visual do fluxo de trabalho, organizando as tarefas por status em colunas.',
+    tools: [
+      { name: 'Quadro Kanban', description: 'Organiza as tarefas em colunas (A fazer, Em andamento, Concluído) para visualizar o fluxo de trabalho e identificar gargalos rapidamente.' },
+    ],
+    widget: 'kanban',
+  },
+  scrum: {
+    label: 'Scrum',
+    summary: 'Entrega iterativa em ciclos curtos (sprints), com uma lista priorizada de pendências (backlog).',
+    tools: [
+      { name: 'Backlog e Sprint', description: 'Separa as tarefas pendentes (backlog) das que estão no ciclo de trabalho atual (sprint), para manter o foco no que precisa ser entregue agora.' },
+      { name: 'Reunião diária (Daily)', description: 'Alinhamento rápido e diário sobre o que foi feito, o que será feito e quais bloqueios existem — use a descrição de cada tarefa para registrar esse andamento.' },
+    ],
+    widget: 'sprint',
+  },
+  pdca: {
+    label: 'PDCA',
+    summary: 'Ciclo de melhoria contínua em 4 etapas: Planejar, Fazer (Do), Checar (Check) e Agir.',
+    tools: [
+      { name: 'Ciclo PDCA', description: 'Estrutura o projeto em 4 etapas: planejar a ação, executar (fazer), checar se o resultado foi o esperado e agir para corrigir ou padronizar.' },
+    ],
+    widget: 'pdca',
+  },
+  '5w2h': {
+    label: '5W2H',
+    summary: 'Plano de ação estruturado em 7 perguntas-chave, para não esquecer nenhum detalhe antes de começar.',
+    tools: [
+      { name: 'Formulário 5W2H', description: 'Responde O quê, Por quê, Onde, Quando, Quem, Como e Quanto custa — garante que o plano de ação está completo antes de sair executando.' },
+    ],
+    widget: '5w2h',
+  },
+  gantt: {
+    label: 'Cronograma / Gantt',
+    summary: 'Visualização do cronograma das tarefas ao longo do tempo, mostrando prazos e sobreposições.',
+    tools: [
+      { name: 'Gráfico de Gantt', description: 'Mostra a data de início e fim de cada tarefa numa linha do tempo, facilitando enxergar prazos, atrasos e o que pode ser feito em paralelo.' },
+    ],
+    widget: 'gantt',
+  },
+  pmbok: {
+    label: 'PMBOK',
+    summary: 'Guia de boas práticas de gestão de projetos do PMI, organizado em grupos de processos.',
+    tools: [
+      { name: 'Grupos de processo', description: 'Checklist dos 5 grupos de processo do PMBOK: Iniciação, Planejamento, Execução, Monitoramento e Controle, e Encerramento.' },
+    ],
+    widget: 'stages',
+    stagesKey: 'pmbokStages',
+    defaultStages: ['Iniciação', 'Planejamento', 'Execução', 'Monitoramento e Controle', 'Encerramento'],
+  },
+  agil: {
+    label: 'Ágil',
+    summary: 'Filosofia de entregas incrementais e adaptação contínua — um guarda-chuva que geralmente usa Kanban ou Scrum na prática.',
+    tools: [
+      { name: 'Quadro visual (Kanban)', description: 'A forma mais comum de aplicar Ágil no dia a dia: um quadro de tarefas por status, igual ao usado no Kanban.' },
+    ],
+    widget: 'kanban',
+  },
+  waterfall: {
+    label: 'Waterfall (Cascata)',
+    summary: 'Fases sequenciais e bem definidas — cada uma só começa quando a anterior termina.',
+    tools: [
+      { name: 'Fases sequenciais', description: 'Checklist das fases clássicas do modelo cascata: Requisitos, Projeto, Implementação, Verificação e Manutenção.' },
+    ],
+    widget: 'stages',
+    stagesKey: 'waterfallStages',
+    defaultStages: ['Requisitos', 'Projeto', 'Implementação', 'Verificação', 'Manutenção'],
+  },
+};
+
+function methodologyKey(value) {
+  const v = (value || '').trim().toLowerCase();
+  if (!v) return null;
+  if (v.includes('kanban')) return 'kanban';
+  if (v.includes('scrum')) return 'scrum';
+  if (v === 'pdca') return 'pdca';
+  if (v.includes('5w2h')) return '5w2h';
+  if (v.includes('gantt') || v.includes('cronograma')) return 'gantt';
+  if (v.includes('pmbok')) return 'pmbok';
+  if (v.includes('ágil') || v.includes('agil')) return 'agil';
+  if (v.includes('waterfall') || v.includes('cascata')) return 'waterfall';
+  return null;
+}
+
 let state = { projects: [] };
 let selectedProjectId = null;
 let fileHandle = null;
@@ -501,6 +589,11 @@ function renderDetail() {
     </section>
 
     <section class="block">
+      <h3>Ferramentas da metodologia</h3>
+      <div id="methodology-tools"></div>
+    </section>
+
+    <section class="block">
       <h3>Materiais e compras</h3>
       <p style="font-size:12px;color:var(--text-muted);margin:-4px 0 10px;">Os itens são agrupados por categoria (ex: Elétrica, Mecânica) como se fossem pastas — defina a categoria ao adicionar ou edite o campo depois para mover o item.</p>
       <div id="materials-container"></div>
@@ -526,7 +619,239 @@ function renderDetail() {
 
   wireDetailEvents(project);
   renderChecklist(project);
+  renderMethodologyTools(project);
   renderMaterials(project);
+}
+
+// ---------- ferramentas integradas por metodologia ----------
+
+function ensureStagesInitialized(project, key, defaultNames) {
+  if (!Array.isArray(project[key]) || project[key].length === 0) {
+    project[key] = defaultNames.map(name => ({ id: uid(), name, done: false }));
+    saveState();
+  }
+  return project[key];
+}
+
+function kanbanBoardHtml(project) {
+  const tasks = project.tasks || [];
+  if (tasks.length === 0) return '<p class="tool-empty">Adicione tarefas em "Avanço do projeto" acima para elas aparecerem aqui no quadro.</p>';
+  const columns = [
+    { key: 'todo', label: 'A fazer' },
+    { key: 'doing', label: 'Em andamento' },
+    { key: 'done', label: 'Concluído' },
+  ];
+  return `
+    <div class="kanban-board">
+      ${columns.map(col => `
+        <div class="kanban-column">
+          <div class="kanban-column-header">${col.label}</div>
+          <div class="kanban-column-body">
+            ${tasks.filter(t => (t.kanbanColumn || 'todo') === col.key).map(t => `
+              <div class="kanban-card">
+                <div class="kanban-card-title">${escapeHtml(t.text)}</div>
+                ${t.responsible ? `<div class="kanban-card-meta">${escapeHtml(t.responsible)}</div>` : ''}
+                <select class="kanban-move" data-task="${t.id}">
+                  ${columns.map(c => `<option value="${c.key}" ${c.key === (t.kanbanColumn || 'todo') ? 'selected' : ''}>${c.label}</option>`).join('')}
+                </select>
+              </div>
+            `).join('') || '<p class="kanban-empty">—</p>'}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function sprintBoardHtml(project) {
+  const tasks = project.tasks || [];
+  if (tasks.length === 0) return '<p class="tool-empty">Adicione tarefas em "Avanço do projeto" acima para elas aparecerem aqui.</p>';
+  const backlog = tasks.filter(t => !t.inSprint);
+  const sprint = tasks.filter(t => t.inSprint);
+  const cardHtml = (t, moveLabel, moveTo) => `
+    <div class="kanban-card">
+      <div class="kanban-card-title">${escapeHtml(t.text)}</div>
+      ${t.responsible ? `<div class="kanban-card-meta">${escapeHtml(t.responsible)}</div>` : ''}
+      <button type="button" class="btn sprint-move" data-task="${t.id}" data-to="${moveTo}">${moveLabel}</button>
+    </div>
+  `;
+  return `
+    <div class="kanban-board">
+      <div class="kanban-column">
+        <div class="kanban-column-header">Backlog</div>
+        <div class="kanban-column-body">${backlog.map(t => cardHtml(t, 'Mover para sprint →', 'true')).join('') || '<p class="kanban-empty">—</p>'}</div>
+      </div>
+      <div class="kanban-column">
+        <div class="kanban-column-header">Sprint atual</div>
+        <div class="kanban-column-body">${sprint.map(t => cardHtml(t, '← Voltar para backlog', 'false')).join('') || '<p class="kanban-empty">—</p>'}</div>
+      </div>
+    </div>
+  `;
+}
+
+const PDCA_FIELDS = [
+  { key: 'plan', label: 'Planejar (Plan)', placeholder: 'O que precisa ser feito e como?' },
+  { key: 'do', label: 'Fazer (Do)', placeholder: 'O que foi executado?' },
+  { key: 'check', label: 'Checar (Check)', placeholder: 'Os resultados foram os esperados?' },
+  { key: 'act', label: 'Agir (Act)', placeholder: 'O que precisa ser ajustado ou padronizado?' },
+];
+
+function pdcaHtml(project) {
+  const p = project.pdca || {};
+  return `
+    <div class="pdca-grid">
+      ${PDCA_FIELDS.map(f => `
+        <div class="field">
+          <label>${f.label}</label>
+          <textarea class="pdca-field" data-field="${f.key}" placeholder="${escapeAttr(f.placeholder)}">${escapeHtml(p[f.key])}</textarea>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+const FIVE_W2H_FIELDS = [
+  { key: 'what', label: 'O quê (What)', placeholder: 'O que será feito?' },
+  { key: 'why', label: 'Por quê (Why)', placeholder: 'Por que esse projeto/ação é necessário?' },
+  { key: 'where', label: 'Onde (Where)', placeholder: 'Onde será feito?' },
+  { key: 'when', label: 'Quando (When)', placeholder: 'Quando será feito?' },
+  { key: 'who', label: 'Quem (Who)', placeholder: 'Quem vai fazer?' },
+  { key: 'how', label: 'Como (How)', placeholder: 'Como será feito?' },
+  { key: 'howMuch', label: 'Quanto custa (How much)', placeholder: 'Qual o custo estimado?' },
+];
+
+function fiveW2HHtml(project) {
+  const f = project.fiveW2H || {};
+  return `
+    <div class="pdca-grid">
+      ${FIVE_W2H_FIELDS.map(field => `
+        <div class="field">
+          <label>${field.label}</label>
+          <textarea class="fiveW2H-field" data-field="${field.key}" placeholder="${escapeAttr(field.placeholder)}">${escapeHtml(f[field.key])}</textarea>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function ganttHtml(project) {
+  const tasks = project.tasks || [];
+  if (tasks.length === 0) return '<p class="tool-empty">Adicione tarefas em "Avanço do projeto" acima para defini-las no cronograma.</p>';
+
+  const rangeStartMs = project.startDate ? new Date(project.startDate).getTime() : Date.now();
+  const fallbackEndMs = rangeStartMs + 30 * 86400000;
+  const rangeEndMs = Math.max(project.deadline ? new Date(project.deadline).getTime() : fallbackEndMs, rangeStartMs + 86400000);
+  const totalSpan = rangeEndMs - rangeStartMs;
+
+  const rows = tasks.map(t => {
+    const startMs = t.plannedStart ? new Date(t.plannedStart).getTime() : rangeStartMs;
+    const endMs = t.plannedEnd ? new Date(t.plannedEnd).getTime() : startMs + Math.max(totalSpan * 0.1, 86400000);
+    const leftPct = Math.min(100, Math.max(0, ((startMs - rangeStartMs) / totalSpan) * 100));
+    const widthPct = Math.min(100 - leftPct, Math.max(2, ((endMs - startMs) / totalSpan) * 100));
+    return `
+      <div class="gantt-row">
+        <div class="gantt-label">${escapeHtml(t.text)}</div>
+        <div class="gantt-dates">
+          <input type="date" class="gantt-start" data-task="${t.id}" value="${escapeAttr(t.plannedStart)}">
+          <input type="date" class="gantt-end" data-task="${t.id}" value="${escapeAttr(t.plannedEnd)}">
+        </div>
+        <div class="gantt-track">
+          <div class="gantt-bar${taskEffectiveDone(t) ? ' done' : ''}" style="left:${leftPct}%;width:${widthPct}%;"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="gantt-chart">
+      <p style="font-size:11px;color:var(--text-muted);margin:0 0 8px;">Linha do tempo entre ${formatDate(project.startDate)} e ${project.deadline ? formatDate(project.deadline) : 'o prazo definido'}. Defina o início/fim de cada tarefa para ajustar as barras.</p>
+      ${rows}
+    </div>
+  `;
+}
+
+function stagesHtml(project, info) {
+  const stages = ensureStagesInitialized(project, info.stagesKey, info.defaultStages);
+  return `
+    <div class="stage-checklist" data-stages-key="${info.stagesKey}">
+      ${stages.map(s => `
+        <label class="stage-item${s.done ? ' done' : ''}">
+          <input type="checkbox" class="stage-check" data-stage="${s.id}" ${s.done ? 'checked' : ''}>
+          <span>${escapeHtml(s.name)}</span>
+        </label>
+      `).join('')}
+    </div>
+  `;
+}
+
+function methodologyWidgetHtml(project, info) {
+  switch (info.widget) {
+    case 'kanban': return kanbanBoardHtml(project);
+    case 'sprint': return sprintBoardHtml(project);
+    case 'pdca': return pdcaHtml(project);
+    case '5w2h': return fiveW2HHtml(project);
+    case 'gantt': return ganttHtml(project);
+    case 'stages': return stagesHtml(project, info);
+    default: return '';
+  }
+}
+
+function renderMethodologyTools(project) {
+  const container = document.getElementById('methodology-tools');
+  if (!container) return;
+  const key = methodologyKey(project.methodology);
+  if (!key) {
+    container.innerHTML = '<p class="tool-empty">Escolha uma metodologia no campo acima (ex: Kanban, Scrum, PDCA, 5W2H, Cronograma/Gantt, PMBOK, Ágil, Waterfall) para ver aqui as ferramentas prontas para usar, já integradas com as tarefas deste projeto.</p>';
+    return;
+  }
+  const info = METHODOLOGY_INFO[key];
+  container.innerHTML = `
+    <p class="methodology-summary">${escapeHtml(info.summary)}</p>
+    <div class="tool-info-list">
+      ${info.tools.map(t => `<div class="tool-info-card"><strong>${escapeHtml(t.name)}</strong><p>${escapeHtml(t.description)}</p></div>`).join('')}
+    </div>
+    ${methodologyWidgetHtml(project, info)}
+  `;
+  wireMethodologyToolEvents(project);
+}
+
+function wireMethodologyToolEvents(project) {
+  const container = document.getElementById('methodology-tools');
+  container.querySelectorAll('.kanban-move').forEach(sel => sel.addEventListener('change', () => {
+    const t = project.tasks.find(x => x.id === sel.dataset.task);
+    t.kanbanColumn = sel.value;
+    saveState();
+    renderMethodologyTools(project);
+  }));
+  container.querySelectorAll('.sprint-move').forEach(btn => btn.addEventListener('click', () => {
+    const t = project.tasks.find(x => x.id === btn.dataset.task);
+    t.inSprint = btn.dataset.to === 'true';
+    saveState();
+    renderMethodologyTools(project);
+  }));
+  container.querySelectorAll('.pdca-field').forEach(ta => ta.addEventListener('input', () => {
+    project.pdca = project.pdca || {};
+    project.pdca[ta.dataset.field] = ta.value;
+    saveState();
+  }));
+  container.querySelectorAll('.fiveW2H-field').forEach(ta => ta.addEventListener('input', () => {
+    project.fiveW2H = project.fiveW2H || {};
+    project.fiveW2H[ta.dataset.field] = ta.value;
+    saveState();
+  }));
+  container.querySelectorAll('.gantt-start, .gantt-end').forEach(inp => inp.addEventListener('change', () => {
+    const t = project.tasks.find(x => x.id === inp.dataset.task);
+    if (inp.classList.contains('gantt-start')) t.plannedStart = inp.value; else t.plannedEnd = inp.value;
+    saveState();
+    renderMethodologyTools(project);
+  }));
+  container.querySelectorAll('.stage-check').forEach(cb => cb.addEventListener('change', () => {
+    const stagesKey = cb.closest('.stage-checklist').dataset.stagesKey;
+    const stage = project[stagesKey].find(s => s.id === cb.dataset.stage);
+    stage.done = cb.checked;
+    saveState();
+    renderMethodologyTools(project);
+  }));
 }
 
 function taskCardHtml(task) {
@@ -585,6 +910,7 @@ function renderChecklist(project) {
     const task = project.tasks.find(t => t.id === inp.dataset.task);
     task.text = inp.value;
     saveState();
+    renderMethodologyTools(project);
   }));
   el.querySelectorAll('.task-description').forEach(ta => ta.addEventListener('input', () => {
     const task = project.tasks.find(t => t.id === ta.dataset.task);
@@ -595,6 +921,7 @@ function renderChecklist(project) {
     const task = project.tasks.find(t => t.id === inp.dataset.task);
     task.responsible = inp.value;
     saveState();
+    renderMethodologyTools(project);
   }));
   el.querySelectorAll('.task-delete').forEach(btn => btn.addEventListener('click', () => {
     project.tasks = project.tasks.filter(t => t.id !== btn.dataset.task);
@@ -765,7 +1092,10 @@ function wireDetailEvents(project) {
     renderProjectList();
   });
   document.getElementById('field-requested-by').addEventListener('input', (e) => updateProject(project.id, { requestedBy: e.target.value }));
-  document.getElementById('field-methodology').addEventListener('input', (e) => updateProject(project.id, { methodology: e.target.value }));
+  document.getElementById('field-methodology').addEventListener('input', (e) => {
+    updateProject(project.id, { methodology: e.target.value });
+    renderMethodologyTools(project);
+  });
   document.getElementById('field-start').addEventListener('change', (e) => {
     updateProject(project.id, { startDate: e.target.value });
     renderProjectList();

@@ -348,11 +348,73 @@ table.data-table input:focus, table.data-table select:focus {
 }
 .totals-row strong { font-size: 15px; }
 
-.checklist { display: flex; flex-direction: column; gap: 6px; }
+.checklist { display: flex; flex-direction: column; gap: 10px; }
 .checklist-item { display: flex; align-items: center; gap: 8px; }
 .checklist-item input[type="text"] { flex: 1; }
 .checklist-item.done label,
 .checklist-item.done span { text-decoration: line-through; color: var(--text-muted); }
+
+.task-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  background: var(--bg);
+}
+.task-card.done .task-card-header .task-text { text-decoration: line-through; color: var(--text-muted); }
+
+.task-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.task-card-header .task-text {
+  flex: 1;
+  border: 1px solid transparent;
+  background: transparent;
+  font-weight: 600;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+.task-card-header .task-text:hover,
+.task-card-header .task-text:focus {
+  border-color: var(--border);
+  background: var(--panel);
+}
+
+.task-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 2px 0 0 26px;
+}
+
+.task-description {
+  width: 100%;
+  margin: 8px 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 40px;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.subtask-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 8px 26px;
+  padding-left: 10px;
+  border-left: 2px solid var(--border);
+}
+.subtask-item input[type="text"] { font-size: 12px; }
+
+.subtask-add-form {
+  margin: 4px 0 0 26px;
+}
+.subtask-add-form input { flex: 1; min-width: 140px; }
 
 .add-row-form {
   display: flex;

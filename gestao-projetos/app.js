@@ -227,9 +227,16 @@ function setStatus(msg, kind) {
 
 // ---------- lógica de domínio ----------
 
+function taskEffectiveDone(task) {
+  if (task.subtasks && task.subtasks.length > 0) {
+    return task.subtasks.every(s => s.done);
+  }
+  return !!task.done;
+}
+
 function computeProgress(project) {
   if (project.tasks && project.tasks.length > 0) {
-    const done = project.tasks.filter(t => t.done).length;
+    const done = project.tasks.filter(t => taskEffectiveDone(t)).length;
     return Math.round((done / project.tasks.length) * 100);
   }
   return project.progress || 0;
@@ -444,13 +451,14 @@ function renderDetail() {
       <table class="data-table">
         <thead>
           <tr>
-            <th>Item</th><th>Qtd</th><th>Unid.</th><th>Preço unit.</th><th>Total</th><th>Fornecedor</th><th>Data</th><th>Comprado</th><th></th>
+            <th>Item</th><th>Ordem de compra</th><th>Qtd</th><th>Unid.</th><th>Preço unit.</th><th>Total</th><th>Fornecedor</th><th>Data</th><th>Comprado</th><th></th>
           </tr>
         </thead>
         <tbody id="materials-body"></tbody>
       </table>
       <div class="add-row-form">
         <input id="new-mat-desc" type="text" placeholder="Descrição do item" style="flex:1;min-width:160px;">
+        <input id="new-mat-po" type="text" placeholder="Ordem de compra" style="width:140px;">
         <input id="new-mat-qty" type="number" placeholder="Qtd" min="0" step="0.01" style="width:70px;">
         <input id="new-mat-unit" type="text" placeholder="Unid." style="width:70px;">
         <input id="new-mat-price" type="number" placeholder="Preço unit." min="0" step="0.01" style="width:100px;">
@@ -468,23 +476,46 @@ function renderDetail() {
   renderMaterials(project);
 }
 
+function taskCardHtml(task) {
+  const subtasks = task.subtasks || [];
+  const hasSubtasks = subtasks.length > 0;
+  const effectiveDone = taskEffectiveDone(task);
+  return `
+    <div class="task-card${effectiveDone ? ' done' : ''}">
+      <div class="task-card-header">
+        <input type="checkbox" class="task-check" data-task="${task.id}" ${effectiveDone ? 'checked' : ''} ${hasSubtasks ? 'disabled' : ''}>
+        <input type="text" class="task-text" data-task="${task.id}" value="${escapeAttr(task.text)}">
+        <button class="icon-btn task-delete" data-task="${task.id}" title="Remover tarefa">✕</button>
+      </div>
+      ${hasSubtasks ? '<p class="task-hint">Concluída automaticamente quando todas as subtarefas forem marcadas.</p>' : ''}
+      <textarea class="task-description" data-task="${task.id}" placeholder="Descrição do que foi feito nesta tarefa">${escapeHtml(task.description)}</textarea>
+      ${hasSubtasks ? `<div class="subtask-list">${subtasks.map(s => subtaskHtml(task, s)).join('')}</div>` : ''}
+      <div class="add-row-form subtask-add-form">
+        <input type="text" class="new-subtask-text" data-task="${task.id}" placeholder="Nova subtarefa">
+        <button class="btn add-subtask-btn" data-task="${task.id}">+ Subtarefa</button>
+      </div>
+    </div>
+  `;
+}
+
+function subtaskHtml(task, sub) {
+  return `
+    <div class="checklist-item subtask-item${sub.done ? ' done' : ''}">
+      <input type="checkbox" class="subtask-check" data-task="${task.id}" data-subtask="${sub.id}" ${sub.done ? 'checked' : ''}>
+      <input type="text" class="subtask-text" data-task="${task.id}" data-subtask="${sub.id}" value="${escapeAttr(sub.text)}">
+      <button class="icon-btn subtask-delete" data-task="${task.id}" data-subtask="${sub.id}" title="Remover subtarefa">✕</button>
+    </div>
+  `;
+}
+
 function renderChecklist(project) {
   const el = document.getElementById('checklist');
   if (!project.tasks || project.tasks.length === 0) {
     el.innerHTML = '<p style="font-size:12px;color:var(--text-muted);">Nenhuma tarefa cadastrada. O avanço pode ser ajustado manualmente acima.</p>';
     return;
   }
-  el.innerHTML = '';
-  for (const task of project.tasks) {
-    const row = document.createElement('div');
-    row.className = 'checklist-item' + (task.done ? ' done' : '');
-    row.innerHTML = `
-      <input type="checkbox" ${task.done ? 'checked' : ''} data-task="${task.id}" class="task-check">
-      <input type="text" value="${escapeAttr(task.text)}" data-task="${task.id}" class="task-text">
-      <button class="icon-btn task-delete" data-task="${task.id}" title="Remover tarefa">✕</button>
-    `;
-    el.appendChild(row);
-  }
+  el.innerHTML = project.tasks.map(taskCardHtml).join('');
+
   el.querySelectorAll('.task-check').forEach(cb => cb.addEventListener('change', () => {
     const task = project.tasks.find(t => t.id === cb.dataset.task);
     task.done = cb.checked;
@@ -498,6 +529,11 @@ function renderChecklist(project) {
     task.text = inp.value;
     saveState();
   }));
+  el.querySelectorAll('.task-description').forEach(ta => ta.addEventListener('input', () => {
+    const task = project.tasks.find(t => t.id === ta.dataset.task);
+    task.description = ta.value;
+    saveState();
+  }));
   el.querySelectorAll('.task-delete').forEach(btn => btn.addEventListener('click', () => {
     project.tasks = project.tasks.filter(t => t.id !== btn.dataset.task);
     saveState();
@@ -505,6 +541,47 @@ function renderChecklist(project) {
     renderProjectList();
     renderSummary();
   }));
+  el.querySelectorAll('.subtask-check').forEach(cb => cb.addEventListener('change', () => {
+    const task = project.tasks.find(t => t.id === cb.dataset.task);
+    const sub = task.subtasks.find(s => s.id === cb.dataset.subtask);
+    sub.done = cb.checked;
+    saveState();
+    renderDetail();
+    renderProjectList();
+    renderSummary();
+  }));
+  el.querySelectorAll('.subtask-text').forEach(inp => inp.addEventListener('input', () => {
+    const task = project.tasks.find(t => t.id === inp.dataset.task);
+    const sub = task.subtasks.find(s => s.id === inp.dataset.subtask);
+    sub.text = inp.value;
+    saveState();
+  }));
+  el.querySelectorAll('.subtask-delete').forEach(btn => btn.addEventListener('click', () => {
+    const task = project.tasks.find(t => t.id === btn.dataset.task);
+    task.subtasks = task.subtasks.filter(s => s.id !== btn.dataset.subtask);
+    saveState();
+    renderDetail();
+    renderProjectList();
+    renderSummary();
+  }));
+  el.querySelectorAll('.add-subtask-btn').forEach(btn => btn.addEventListener('click', () => addSubtask(project, btn.dataset.task)));
+  el.querySelectorAll('.new-subtask-text').forEach(inp => inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addSubtask(project, inp.dataset.task);
+  }));
+}
+
+function addSubtask(project, taskId) {
+  const task = project.tasks.find(t => t.id === taskId);
+  if (!task) return;
+  const input = document.querySelector(`.new-subtask-text[data-task="${taskId}"]`);
+  const text = input.value.trim();
+  if (!text) return;
+  task.subtasks = task.subtasks || [];
+  task.subtasks.push({ id: uid(), text, done: false });
+  saveState();
+  renderDetail();
+  renderProjectList();
+  renderSummary();
 }
 
 function renderMaterials(project) {
@@ -514,6 +591,7 @@ function renderMaterials(project) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><input type="text" value="${escapeAttr(m.description)}" data-field="description" data-mat="${m.id}"></td>
+      <td><input type="text" value="${escapeAttr(m.purchaseOrder)}" data-field="purchaseOrder" data-mat="${m.id}" placeholder="Nº/descrição"></td>
       <td><input type="number" min="0" step="0.01" value="${m.quantity}" data-field="quantity" data-mat="${m.id}" style="width:60px;"></td>
       <td><input type="text" value="${escapeAttr(m.unit)}" data-field="unit" data-mat="${m.id}" style="width:60px;"></td>
       <td><input type="number" min="0" step="0.01" value="${m.unitPrice}" data-field="unitPrice" data-mat="${m.id}" style="width:90px;"></td>
@@ -593,7 +671,7 @@ function addTask(project) {
   const text = input.value.trim();
   if (!text) return;
   project.tasks = project.tasks || [];
-  project.tasks.push({ id: uid(), text, done: false });
+  project.tasks.push({ id: uid(), text, done: false, description: '', subtasks: [] });
   saveState();
   renderDetail();
   renderProjectList();
@@ -603,13 +681,14 @@ function addTask(project) {
 function addMaterial(project) {
   const desc = document.getElementById('new-mat-desc').value.trim();
   if (!desc) { document.getElementById('new-mat-desc').focus(); return; }
+  const purchaseOrder = document.getElementById('new-mat-po').value.trim();
   const qty = Number(document.getElementById('new-mat-qty').value) || 1;
   const unit = document.getElementById('new-mat-unit').value.trim();
   const price = Number(document.getElementById('new-mat-price').value) || 0;
   const supplier = document.getElementById('new-mat-supplier').value.trim();
   project.materials = project.materials || [];
   project.materials.push({
-    id: uid(), description: desc, quantity: qty, unit, unitPrice: price,
+    id: uid(), description: desc, purchaseOrder, quantity: qty, unit, unitPrice: price,
     supplier, date: todayISO(), purchased: false,
   });
   saveState();

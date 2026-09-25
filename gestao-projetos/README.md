@@ -35,7 +35,8 @@ Se o navegador do computador não suportar a opção acima, use exportar/importa
 
 - Cadastro de projetos: nome, descrição, categoria, status, data inicial e prazo.
 - Avanço do projeto: pode ser controlado manualmente (barra deslizante) ou automaticamente, criando uma lista de tarefas/etapas — o avanço passa a ser calculado pela proporção de tarefas concluídas.
-- Compra de materiais por projeto: item, quantidade, unidade, preço unitário, fornecedor, data e se já foi comprado. O total previsto e o total já gasto são calculados automaticamente.
+- Cada tarefa tem uma descrição livre (para registrar o que foi feito) e pode ter subtarefas; quando há subtarefas, a tarefa é marcada como concluída automaticamente ao concluir todas elas.
+- Compra de materiais por projeto: item, ordem de compra, quantidade, unidade, preço unitário, fornecedor, data e se já foi comprado. O total previsto e o total já gasto são calculados automaticamente.
 - Painel lateral com resumo geral (quantidade de projetos, em andamento, concluídos e gasto total).
 
 ## Estrutura dos arquivos

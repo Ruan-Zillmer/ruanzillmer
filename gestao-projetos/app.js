@@ -151,6 +151,7 @@ function persistLocal() {
 function saveState() {
   persistLocal();
   scheduleFileSave();
+  if (window.DriveSync) window.DriveSync.scheduleSave(state);
 }
 
 // ---------- persistence: arquivo em pasta compartilhada (pendrive, Google Drive, etc.) via File System Access API ----------
@@ -1214,6 +1215,19 @@ function init() {
 
   render();
   tryRestoreHandle();
+
+  if (window.DriveSync) {
+    window.DriveSync.setup({
+      getCurrentState: () => state,
+      onDataLoaded: (remoteState) => {
+        state = remoteState;
+        selectedProjectId = state.projects[0] ? state.projects[0].id : null;
+        persistLocal();
+        render();
+      },
+      onStatus: (msg, kind) => setStatus(msg, kind),
+    });
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);

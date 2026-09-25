@@ -27,6 +27,50 @@ Se o navegador do computador não suportar a opção acima, use exportar/importa
 
 > Observação: enquanto você usa o app, os dados também ficam guardados automaticamente no navegador do computador atual (localStorage), como uma segurança extra — mas isso **não viaja com você**, por isso é importante usar uma das opções acima para levar os dados para outro computador.
 
+## Sincronização automática de verdade: Google Drive (API oficial)
+
+As opções acima (arquivo vinculado, pasta sincronizada, exportar/importar) sempre dependem de você lembrar de salvar/abrir o arquivo certo. Se você quer que **toda alteração salve sozinha na nuvem, como um servidor**, e funcione em qualquer computador só fazendo login com sua conta Google, use a integração com a API do Google Drive — é um recurso à parte, com uma configuração única (leva uns 10-15 minutos, só na primeira vez).
+
+### Por que precisa desse passo a passo
+
+O login do Google só funciona quando a página é aberta por um endereço `http://` ou `https://` de verdade — não funciona abrindo o `index.html` direto do computador (`file://`) nem de dentro de uma pasta do Drive. Por isso, para usar esse recurso, o app precisa estar hospedado em algum lugar. Como o projeto já está no GitHub, a forma mais simples e gratuita é publicá-lo com o **GitHub Pages**.
+
+### Passo 1 — Publicar o app com GitHub Pages (gratuito)
+
+1. No repositório no GitHub, vá em **Settings → Pages**.
+2. Em "Build and deployment", escolha **Source: Deploy from a branch**.
+3. Em "Branch", selecione a branch onde está o código (ex: `claude/wonderful-planck-ffh07l`, ou `main` depois de mesclar) e a pasta **/ (root)**.
+4. Clique em **Save** e espere 1-2 minutos.
+5. O site fica disponível em `https://ruan-zillmer.github.io/ruanzillmer/`, e o app especificamente em:
+   **`https://ruan-zillmer.github.io/ruanzillmer/gestao-projetos/`**
+
+> Como o repositório é público, o código do app fica publicamente acessível nesse endereço (qualquer um com o link consegue ver o app e criar seus próprios projetos — mas cada um só sincroniza com o **seu próprio** Google Drive, então seus dados continuam privados).
+
+### Passo 2 — Criar as credenciais do Google (Client ID OAuth)
+
+1. Acesse o [Google Cloud Console](https://console.cloud.google.com/) e crie um projeto novo (qualquer nome, ex: "Gestão de Projetos").
+2. Vá em **APIs e serviços → Biblioteca**, procure por **Google Drive API** e clique em **Ativar**.
+3. Vá em **APIs e serviços → Tela de permissão OAuth**:
+   - Tipo de usuário: **Externo**.
+   - Preencha nome do app, e-mail de suporte e e-mail de contato do desenvolvedor.
+   - Nas próximas telas pode avançar sem adicionar escopos manualmente.
+   - Em **Usuários de teste**, adicione o(s) seu(s) e-mail(s) do Google que vão usar o app (enquanto o app estiver em modo "Teste", só esses e-mails conseguem conectar — isso é normal e evita precisar passar pela revisão do Google).
+4. Vá em **APIs e serviços → Credenciais → Criar credenciais → ID do cliente OAuth**.
+   - Tipo de aplicativo: **Aplicativo da Web**.
+   - Em **Origens JavaScript autorizadas**, adicione: `https://ruan-zillmer.github.io`
+   - Clique em **Criar** e copie o **Client ID** gerado (termina com `.apps.googleusercontent.com`).
+
+### Passo 3 — Conectar o app
+
+1. Abra `https://ruan-zillmer.github.io/ruanzillmer/gestao-projetos/`.
+2. Clique no botão **"Google Drive"** no topo, cole o Client ID copiado e clique em **"Salvar Client ID"**.
+3. Clique em **"Conectar ao Google Drive"**, faça login com a conta que você adicionou como usuária de teste e aceite a permissão (o Google vai avisar que o app "não foi verificado" — isso é esperado para uso pessoal; clique em "Avançado" → "Acessar [nome do app] (não seguro)" para prosseguir).
+4. Pronto: o app cria (ou encontra) um arquivo `dados.json` no seu Google Drive e passa a salvar automaticamente ali a cada alteração, em qualquer computador onde você repetir o Passo 3 (o Client ID pode ser o mesmo, só logar de novo).
+
+> O app só enxerga o arquivo `dados.json` que ele mesmo cria no seu Drive (permissão mínima, `drive.file`) — nunca o restante dos seus arquivos.
+
+As formas de pendrive/pasta sincronizada continuam funcionando normalmente em paralelo, como um backup extra.
+
 ## Usando com Google Drive em vez de pendrive
 
 Duas formas de fazer isso, dependendo se o computador tem o Google Drive instalado:
@@ -77,6 +121,7 @@ gestao-projetos/
 ├── index.html          # estrutura da página (logo já embutido no arquivo, não depende de outro arquivo de imagem)
 ├── style.css            # aparência
 ├── app.js               # toda a lógica (armazenamento, cálculos, interações)
+├── drive.js             # sincronização automática com o Google Drive (API oficial)
 ├── assets/
 │   └── logo-screw.png  # arquivo de referência do logotipo (opcional, não é carregado pelo app)
 └── README.md            # este arquivo

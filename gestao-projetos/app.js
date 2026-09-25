@@ -54,7 +54,7 @@ function saveState() {
   scheduleFileSave();
 }
 
-// ---------- persistence: arquivo no pendrive (File System Access API) ----------
+// ---------- persistence: arquivo em pasta compartilhada (pendrive, Google Drive, etc.) via File System Access API ----------
 
 function fsApiSupported() {
   return typeof window.showOpenFilePicker === 'function';
@@ -101,7 +101,7 @@ async function tryRestoreHandle() {
     const perm = await handle.queryPermission({ mode: 'readwrite' });
     if (perm === 'granted') {
       fileHandle = handle;
-      setStatus('Arquivo do pendrive vinculado: ' + handle.name, 'ok');
+      setStatus('Arquivo de dados vinculado: ' + handle.name, 'ok');
       document.getElementById('btn-save-file').disabled = false;
     } else {
       setStatus('Arquivo vinculado anteriormente (' + handle.name + '). Clique em "Salvar no arquivo" para reconceder acesso.', 'warn');
@@ -113,7 +113,7 @@ async function tryRestoreHandle() {
   }
 }
 
-async function openFileFromPendrive() {
+async function openDataFile() {
   if (!fsApiSupported()) {
     setStatus('Seu navegador não suporta abrir arquivos diretamente. Use "Importar backup" no lugar.', 'warn');
     document.getElementById('import-input').click();
@@ -135,7 +135,7 @@ async function openFileFromPendrive() {
     selectedProjectId = state.projects[0] ? state.projects[0].id : null;
     persistLocal();
     render();
-    setStatus('Dados carregados de ' + handle.name + '. Este arquivo agora é sua fonte de dados no pendrive.', 'ok');
+    setStatus('Dados carregados de ' + handle.name + '. Este arquivo agora é sua fonte de dados.', 'ok');
   } catch (e) {
     if (e.name !== 'AbortError') setStatus('Não foi possível abrir o arquivo: ' + e.message, 'error');
   }
@@ -711,7 +711,7 @@ function init() {
   if (state.projects.length > 0) selectedProjectId = state.projects[0].id;
 
   document.getElementById('btn-new-project').addEventListener('click', createProject);
-  document.getElementById('btn-open-file').addEventListener('click', openFileFromPendrive);
+  document.getElementById('btn-open-file').addEventListener('click', openDataFile);
   document.getElementById('btn-save-file').addEventListener('click', () => saveToFile(true));
   document.getElementById('btn-export').addEventListener('click', exportBackup);
   document.getElementById('btn-import').addEventListener('click', () => document.getElementById('import-input').click());

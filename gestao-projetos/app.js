@@ -744,27 +744,34 @@ function ganttHtml(project) {
   const totalSpan = rangeEndMs - rangeStartMs;
 
   const rows = tasks.map(t => {
-    const startMs = t.plannedStart ? new Date(t.plannedStart).getTime() : rangeStartMs;
-    const endMs = t.plannedEnd ? new Date(t.plannedEnd).getTime() : startMs + Math.max(totalSpan * 0.1, 86400000);
+    const startMs = t.startDate ? new Date(t.startDate).getTime() : rangeStartMs;
+    const endMs = t.plannedDate ? new Date(t.plannedDate).getTime() : startMs + Math.max(totalSpan * 0.1, 86400000);
     const leftPct = Math.min(100, Math.max(0, ((startMs - rangeStartMs) / totalSpan) * 100));
     const widthPct = Math.min(100 - leftPct, Math.max(2, ((endMs - startMs) / totalSpan) * 100));
+
+    let actualMarker = '';
+    if (t.actualDate) {
+      const actualMs = new Date(t.actualDate).getTime();
+      const actualPct = Math.min(100, Math.max(0, ((actualMs - rangeStartMs) / totalSpan) * 100));
+      const late = t.plannedDate && actualMs > new Date(t.plannedDate).getTime();
+      actualMarker = `<div class="gantt-actual-marker${late ? ' late' : ''}" style="left:${actualPct}%;" title="Entrega real: ${formatDate(t.actualDate)}${late ? ' (atrasada)' : ''}"></div>`;
+    }
+
     return `
       <div class="gantt-row">
         <div class="gantt-label">${escapeHtml(t.text)}</div>
-        <div class="gantt-dates">
-          <input type="date" class="gantt-start" data-task="${t.id}" value="${escapeAttr(t.plannedStart)}">
-          <input type="date" class="gantt-end" data-task="${t.id}" value="${escapeAttr(t.plannedEnd)}">
-        </div>
         <div class="gantt-track">
           <div class="gantt-bar${taskEffectiveDone(t) ? ' done' : ''}" style="left:${leftPct}%;width:${widthPct}%;"></div>
+          ${actualMarker}
         </div>
+        <div class="gantt-dates-label">${formatDate(t.startDate)} → ${formatDate(t.plannedDate)}${t.actualDate ? ' · real: ' + formatDate(t.actualDate) : ''}</div>
       </div>
     `;
   }).join('');
 
   return `
     <div class="gantt-chart">
-      <p style="font-size:11px;color:var(--text-muted);margin:0 0 8px;">Linha do tempo entre ${formatDate(project.startDate)} e ${project.deadline ? formatDate(project.deadline) : 'o prazo definido'}. Defina o início/fim de cada tarefa para ajustar as barras.</p>
+      <p style="font-size:11px;color:var(--text-muted);margin:0 0 8px;">Linha do tempo entre ${formatDate(project.startDate)} e ${project.deadline ? formatDate(project.deadline) : 'o prazo definido'}. As datas de cada tarefa (início, planejada e entrega real) são as mesmas definidas em "Avanço do projeto" acima; a marca no gráfico fica vermelha quando a entrega real passou da data planejada.</p>
       ${rows}
     </div>
   `;
@@ -839,12 +846,6 @@ function wireMethodologyToolEvents(project) {
     project.fiveW2H[ta.dataset.field] = ta.value;
     saveState();
   }));
-  container.querySelectorAll('.gantt-start, .gantt-end').forEach(inp => inp.addEventListener('change', () => {
-    const t = project.tasks.find(x => x.id === inp.dataset.task);
-    if (inp.classList.contains('gantt-start')) t.plannedStart = inp.value; else t.plannedEnd = inp.value;
-    saveState();
-    renderMethodologyTools(project);
-  }));
   container.querySelectorAll('.stage-check').forEach(cb => cb.addEventListener('change', () => {
     const stagesKey = cb.closest('.stage-checklist').dataset.stagesKey;
     const stage = project[stagesKey].find(s => s.id === cb.dataset.stage);
@@ -868,6 +869,11 @@ function taskCardHtml(task) {
       <div class="task-meta-row">
         <span>Responsável:</span>
         <input type="text" class="task-responsible" data-task="${task.id}" value="${escapeAttr(task.responsible)}" placeholder="Nome">
+      </div>
+      <div class="task-meta-row task-dates-row">
+        <label>Início<input type="date" class="task-start-date" data-task="${task.id}" value="${escapeAttr(task.startDate)}"></label>
+        <label>Planejada<input type="date" class="task-planned-date" data-task="${task.id}" value="${escapeAttr(task.plannedDate)}"></label>
+        <label>Entrega real<input type="date" class="task-actual-date" data-task="${task.id}" value="${escapeAttr(task.actualDate)}"></label>
       </div>
       ${hasSubtasks ? '<p class="task-hint">Concluída automaticamente quando todas as subtarefas forem marcadas.</p>' : ''}
       <textarea class="task-description" data-task="${task.id}" placeholder="Descrição do que foi feito nesta tarefa">${escapeHtml(task.description)}</textarea>
@@ -920,6 +926,24 @@ function renderChecklist(project) {
   el.querySelectorAll('.task-responsible').forEach(inp => inp.addEventListener('input', () => {
     const task = project.tasks.find(t => t.id === inp.dataset.task);
     task.responsible = inp.value;
+    saveState();
+    renderMethodologyTools(project);
+  }));
+  el.querySelectorAll('.task-start-date').forEach(inp => inp.addEventListener('change', () => {
+    const task = project.tasks.find(t => t.id === inp.dataset.task);
+    task.startDate = inp.value;
+    saveState();
+    renderMethodologyTools(project);
+  }));
+  el.querySelectorAll('.task-planned-date').forEach(inp => inp.addEventListener('change', () => {
+    const task = project.tasks.find(t => t.id === inp.dataset.task);
+    task.plannedDate = inp.value;
+    saveState();
+    renderMethodologyTools(project);
+  }));
+  el.querySelectorAll('.task-actual-date').forEach(inp => inp.addEventListener('change', () => {
+    const task = project.tasks.find(t => t.id === inp.dataset.task);
+    task.actualDate = inp.value;
     saveState();
     renderMethodologyTools(project);
   }));
@@ -1130,7 +1154,10 @@ function addTask(project) {
   const text = input.value.trim();
   if (!text) return;
   project.tasks = project.tasks || [];
-  project.tasks.push({ id: uid(), text, done: false, description: '', responsible: '', subtasks: [] });
+  project.tasks.push({
+    id: uid(), text, done: false, description: '', responsible: '', subtasks: [],
+    startDate: '', plannedDate: '', actualDate: '',
+  });
   saveState();
   renderDetail();
   renderProjectList();

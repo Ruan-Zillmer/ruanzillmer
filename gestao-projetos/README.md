@@ -74,11 +74,11 @@ Nesse caso não dá para o app ler/gravar direto num arquivo dentro do Drive pel
 
 ```
 gestao-projetos/
-├── index.html          # estrutura da página
+├── index.html          # estrutura da página (logo já embutido no arquivo, não depende de outro arquivo de imagem)
 ├── style.css            # aparência
 ├── app.js               # toda a lógica (armazenamento, cálculos, interações)
 ├── assets/
-│   └── logo-screw.png  # logotipo exibido no cabeçalho
+│   └── logo-screw.png  # arquivo de referência do logotipo (opcional, não é carregado pelo app)
 └── README.md            # este arquivo
 ```
 

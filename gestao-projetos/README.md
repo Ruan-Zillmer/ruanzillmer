@@ -1,6 +1,6 @@
-# Gestão de Projetos
+# Gestão de Projetos - AUTOMAÇÃO
 
-Aplicativo simples de controle de projetos: status, data de início, prazo, avanço (tarefas/etapas) e compra de materiais por projeto. Roda 100% no navegador, sem instalação e sem servidor — a pasta pode ficar num pendrive, no Google Drive ou em qualquer serviço parecido (OneDrive, Dropbox), para acessar de qualquer computador.
+Aplicativo de controle de projetos: prioridade, responsáveis, status, data de início, prazo, avanço (tarefas/etapas) e compra de materiais organizada por categoria. Roda 100% no navegador, sem instalação e sem servidor — a pasta pode ficar num pendrive, no Google Drive ou em qualquer serviço parecido (OneDrive, Dropbox), para acessar de qualquer computador.
 
 ## Como usar
 
@@ -55,20 +55,25 @@ Nesse caso não dá para o app ler/gravar direto num arquivo dentro do Drive pel
 
 ## Funcionalidades
 
-- Cadastro de projetos: nome, descrição, categoria, status, data inicial e prazo.
+- Cadastro de projetos: nome, descrição, categoria, **prioridade** (baixa/média/alta/urgente), status, data inicial e prazo.
+- **Responsável pelo projeto** e **quem solicitou** o projeto.
+- **Metodologia/ferramenta de gestão** usada (sugestões: Kanban, Scrum, PDCA, 5W2H, Cronograma/Gantt, PMBOK, Ágil, Waterfall — ou digite outra).
+- **Importância do projeto**: campo livre para justificar por que fazê-lo e que valor ele agrega à empresa.
 - Avanço do projeto: pode ser controlado manualmente (barra deslizante) ou automaticamente, criando uma lista de tarefas/etapas — o avanço passa a ser calculado pela proporção de tarefas concluídas.
-- Cada tarefa tem uma descrição livre (para registrar o que foi feito) e pode ter subtarefas; quando há subtarefas, a tarefa é marcada como concluída automaticamente ao concluir todas elas.
-- Compra de materiais por projeto: item, ordem de compra, quantidade, unidade, preço unitário, fornecedor, data e se já foi comprado. O total previsto e o total já gasto são calculados automaticamente.
-- Painel lateral com resumo geral (quantidade de projetos, em andamento, concluídos e gasto total).
+- Cada tarefa tem um **responsável pela etapa**, uma descrição livre (para registrar o que foi feito) e pode ter subtarefas; quando há subtarefas, a tarefa é marcada como concluída automaticamente ao concluir todas elas.
+- Compra de materiais por projeto: item, **categoria** (as compras são agrupadas por categoria como se fossem pastas, ex: Elétrica, Mecânica — edite o campo para mover um item de categoria), ordem de compra, **onde o item vai ser usado**, quantidade, unidade, preço unitário, fornecedor, data e se já foi comprado. Total previsto e total já gasto são calculados automaticamente, no geral e por categoria.
+- Painel lateral com resumo geral (quantidade de projetos, em andamento, concluídos e gasto total) e, em cada projeto, prioridade e responsável em destaque.
 
 ## Estrutura dos arquivos
 
 ```
 gestao-projetos/
-├── index.html   # estrutura da página
-├── style.css    # aparência
-├── app.js       # toda a lógica (armazenamento, cálculos, interações)
-└── README.md    # este arquivo
+├── index.html          # estrutura da página
+├── style.css            # aparência
+├── app.js               # toda a lógica (armazenamento, cálculos, interações)
+├── assets/
+│   └── logo-screw.png  # logotipo exibido no cabeçalho
+└── README.md            # este arquivo
 ```
 
 Sinta-se à vontade para pedir ajustes: novos campos, categorias de status, relatórios, etc.

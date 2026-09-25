@@ -13,6 +13,17 @@ const STATUS_OPTIONS = [
   { value: 'cancelado', label: 'Cancelado' },
 ];
 
+const PRIORITY_OPTIONS = [
+  { value: 'baixa', label: 'Baixa' },
+  { value: 'media', label: 'Média' },
+  { value: 'alta', label: 'Alta' },
+  { value: 'urgente', label: 'Urgente' },
+];
+
+const METHODOLOGY_SUGGESTIONS = ['Kanban', 'Scrum', 'PDCA', '5W2H', 'Cronograma / Gantt', 'PMBOK', 'Ágil', 'Waterfall'];
+
+const MATERIAL_CATEGORY_SUGGESTIONS = ['Elétrica', 'Mecânica', 'Hidráulica', 'Automação', 'Estrutural', 'Outros'];
+
 let state = { projects: [] };
 let selectedProjectId = null;
 let fileHandle = null;
@@ -288,6 +299,15 @@ function statusClass(value) {
   return 'status-' + (value || 'planejamento');
 }
 
+function priorityLabel(value) {
+  const found = PRIORITY_OPTIONS.find(p => p.value === value);
+  return found ? found.label : 'Média';
+}
+
+function priorityClass(value) {
+  return 'priority-' + (value || 'media');
+}
+
 function findProject(id) {
   return state.projects.find(p => p.id === id);
 }
@@ -301,6 +321,11 @@ function createProject() {
     startDate: todayISO(),
     deadline: '',
     status: 'planejamento',
+    priority: 'media',
+    responsible: '',
+    requestedBy: '',
+    methodology: '',
+    importance: '',
     progress: 0,
     tasks: [],
     materials: [],
@@ -375,11 +400,15 @@ function renderProjectList() {
     const badge = node.querySelector('.status-badge');
     badge.textContent = statusLabel(project.status);
     badge.classList.add(statusClass(project.status));
+    const priorityBadge = node.querySelector('.priority-badge');
+    priorityBadge.textContent = priorityLabel(project.priority);
+    priorityBadge.classList.add(priorityClass(project.priority));
     const progress = computeProgress(project);
     node.querySelector('.progress-fill').style.width = progress + '%';
     const totals = projectTotals(project);
     node.querySelector('.project-card-meta').innerHTML =
       `<span>${formatDate(project.startDate)}</span><span>${progress}% · ${formatCurrency(totals.gasto)}</span>`;
+    if (project.responsible) node.querySelector('.project-card-sub').textContent = 'Responsável: ' + project.responsible;
     card.addEventListener('click', () => { selectedProjectId = project.id; render(); });
     list.appendChild(node);
   }
@@ -414,8 +443,26 @@ function renderDetail() {
         </select>
       </div>
       <div class="field">
+        <label for="field-priority">Prioridade</label>
+        <select id="field-priority">
+          ${PRIORITY_OPTIONS.map(p => `<option value="${p.value}" ${p.value === project.priority ? 'selected' : ''}>${p.label}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
         <label for="field-category">Categoria</label>
         <input id="field-category" type="text" value="${escapeAttr(project.category)}" placeholder="Ex: Reforma, Software, Evento...">
+      </div>
+      <div class="field">
+        <label for="field-responsible">Responsável pelo projeto</label>
+        <input id="field-responsible" type="text" value="${escapeAttr(project.responsible)}" placeholder="Nome do responsável">
+      </div>
+      <div class="field">
+        <label for="field-requested-by">Solicitado por</label>
+        <input id="field-requested-by" type="text" value="${escapeAttr(project.requestedBy)}" placeholder="Quem pediu o projeto">
+      </div>
+      <div class="field">
+        <label for="field-methodology">Metodologia / ferramenta de gestão</label>
+        <input id="field-methodology" type="text" list="methodology-options" value="${escapeAttr(project.methodology)}" placeholder="Ex: Kanban, Scrum, PDCA...">
       </div>
       <div class="field">
         <label for="field-start">Data inicial</label>
@@ -429,7 +476,14 @@ function renderDetail() {
         <label for="field-description">Descrição</label>
         <textarea id="field-description">${escapeHtml(project.description)}</textarea>
       </div>
+      <div class="field full">
+        <label for="field-importance">Importância do projeto (por que fazer, que valor agrega à empresa)</label>
+        <textarea id="field-importance" placeholder="Ex: reduz retrabalho, aumenta capacidade produtiva, atende exigência de cliente...">${escapeHtml(project.importance)}</textarea>
+      </div>
     </div>
+    <datalist id="methodology-options">
+      ${METHODOLOGY_SUGGESTIONS.map(o => `<option value="${escapeAttr(o)}"></option>`).join('')}
+    </datalist>
 
     <section class="block">
       <h3>Avanço do projeto</h3>
@@ -448,23 +502,22 @@ function renderDetail() {
 
     <section class="block">
       <h3>Materiais e compras</h3>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Item</th><th>Ordem de compra</th><th>Qtd</th><th>Unid.</th><th>Preço unit.</th><th>Total</th><th>Fornecedor</th><th>Data</th><th>Comprado</th><th></th>
-          </tr>
-        </thead>
-        <tbody id="materials-body"></tbody>
-      </table>
+      <p style="font-size:12px;color:var(--text-muted);margin:-4px 0 10px;">Os itens são agrupados por categoria (ex: Elétrica, Mecânica) como se fossem pastas — defina a categoria ao adicionar ou edite o campo depois para mover o item.</p>
+      <div id="materials-container"></div>
       <div class="add-row-form">
         <input id="new-mat-desc" type="text" placeholder="Descrição do item" style="flex:1;min-width:160px;">
+        <input id="new-mat-category" type="text" list="material-category-options" placeholder="Categoria (ex: Elétrica)" style="width:150px;">
         <input id="new-mat-po" type="text" placeholder="Ordem de compra" style="width:140px;">
+        <input id="new-mat-location" type="text" placeholder="Onde será usado" style="width:150px;">
         <input id="new-mat-qty" type="number" placeholder="Qtd" min="0" step="0.01" style="width:70px;">
         <input id="new-mat-unit" type="text" placeholder="Unid." style="width:70px;">
         <input id="new-mat-price" type="number" placeholder="Preço unit." min="0" step="0.01" style="width:100px;">
         <input id="new-mat-supplier" type="text" placeholder="Fornecedor" style="width:140px;">
         <button id="btn-add-material" class="btn">+ Adicionar item</button>
       </div>
+      <datalist id="material-category-options">
+        ${MATERIAL_CATEGORY_SUGGESTIONS.map(o => `<option value="${escapeAttr(o)}"></option>`).join('')}
+      </datalist>
       <div class="totals-row" id="totals-row">
         ${totalsRowHtml(totals)}
       </div>
@@ -486,6 +539,10 @@ function taskCardHtml(task) {
         <input type="checkbox" class="task-check" data-task="${task.id}" ${effectiveDone ? 'checked' : ''} ${hasSubtasks ? 'disabled' : ''}>
         <input type="text" class="task-text" data-task="${task.id}" value="${escapeAttr(task.text)}">
         <button class="icon-btn task-delete" data-task="${task.id}" title="Remover tarefa">✕</button>
+      </div>
+      <div class="task-meta-row">
+        <span>Responsável:</span>
+        <input type="text" class="task-responsible" data-task="${task.id}" value="${escapeAttr(task.responsible)}" placeholder="Nome">
       </div>
       ${hasSubtasks ? '<p class="task-hint">Concluída automaticamente quando todas as subtarefas forem marcadas.</p>' : ''}
       <textarea class="task-description" data-task="${task.id}" placeholder="Descrição do que foi feito nesta tarefa">${escapeHtml(task.description)}</textarea>
@@ -532,6 +589,11 @@ function renderChecklist(project) {
   el.querySelectorAll('.task-description').forEach(ta => ta.addEventListener('input', () => {
     const task = project.tasks.find(t => t.id === ta.dataset.task);
     task.description = ta.value;
+    saveState();
+  }));
+  el.querySelectorAll('.task-responsible').forEach(inp => inp.addEventListener('input', () => {
+    const task = project.tasks.find(t => t.id === inp.dataset.task);
+    task.responsible = inp.value;
     saveState();
   }));
   el.querySelectorAll('.task-delete').forEach(btn => btn.addEventListener('click', () => {
@@ -584,14 +646,28 @@ function addSubtask(project, taskId) {
   renderSummary();
 }
 
-function renderMaterials(project) {
-  const body = document.getElementById('materials-body');
-  body.innerHTML = '';
-  for (const m of project.materials || []) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
+function groupMaterialsByCategory(materials) {
+  const groups = new Map();
+  for (const m of materials || []) {
+    const cat = (m.category || '').trim() || 'Sem categoria';
+    if (!groups.has(cat)) groups.set(cat, []);
+    groups.get(cat).push(m);
+  }
+  const keys = Array.from(groups.keys()).sort((a, b) => {
+    if (a === 'Sem categoria') return 1;
+    if (b === 'Sem categoria') return -1;
+    return a.localeCompare(b, 'pt-BR');
+  });
+  return keys.map(k => ({ category: k, items: groups.get(k) }));
+}
+
+function materialRowHtml(m) {
+  return `
+    <tr>
       <td><input type="text" value="${escapeAttr(m.description)}" data-field="description" data-mat="${m.id}"></td>
+      <td><input type="text" value="${escapeAttr(m.category)}" data-field="category" data-mat="${m.id}" list="material-category-options" placeholder="Categoria"></td>
       <td><input type="text" value="${escapeAttr(m.purchaseOrder)}" data-field="purchaseOrder" data-mat="${m.id}" placeholder="Nº/descrição"></td>
+      <td><input type="text" value="${escapeAttr(m.usageLocation)}" data-field="usageLocation" data-mat="${m.id}" placeholder="Onde será usado"></td>
       <td><input type="number" min="0" step="0.01" value="${m.quantity}" data-field="quantity" data-mat="${m.id}" style="width:60px;"></td>
       <td><input type="text" value="${escapeAttr(m.unit)}" data-field="unit" data-mat="${m.id}" style="width:60px;"></td>
       <td><input type="number" min="0" step="0.01" value="${m.unitPrice}" data-field="unitPrice" data-mat="${m.id}" style="width:90px;"></td>
@@ -600,17 +676,59 @@ function renderMaterials(project) {
       <td><input type="date" value="${escapeAttr(m.date)}" data-field="date" data-mat="${m.id}"></td>
       <td style="text-align:center;"><input type="checkbox" ${m.purchased ? 'checked' : ''} data-field="purchased" data-mat="${m.id}"></td>
       <td class="row-actions"><button class="icon-btn mat-delete" data-mat="${m.id}" title="Remover item">✕</button></td>
-    `;
-    body.appendChild(tr);
+    </tr>
+  `;
+}
+
+function materialGroupHtml(group) {
+  const subtotal = group.items.reduce((acc, m) => {
+    const total = materialTotal(m);
+    acc.previsto += total;
+    if (m.purchased) acc.gasto += total;
+    return acc;
+  }, { previsto: 0, gasto: 0 });
+
+  return `
+    <div class="material-group">
+      <div class="material-group-header">
+        <span class="folder-icon">📁</span>
+        <span class="material-group-name">${escapeHtml(group.category)}</span>
+        <span class="material-group-subtotal">gasto ${formatCurrency(subtotal.gasto)} de ${formatCurrency(subtotal.previsto)}</span>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Item</th><th>Categoria</th><th>Ordem de compra</th><th>Onde será usado</th><th>Qtd</th><th>Unid.</th><th>Preço unit.</th><th>Total</th><th>Fornecedor</th><th>Data</th><th>Comprado</th><th></th>
+            </tr>
+          </thead>
+          <tbody>${group.items.map(materialRowHtml).join('')}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function renderMaterials(project) {
+  const container = document.getElementById('materials-container');
+  const groups = groupMaterialsByCategory(project.materials);
+  if (groups.length === 0) {
+    container.innerHTML = '<p style="font-size:12px;color:var(--text-muted);">Nenhum item cadastrado ainda.</p>';
+    return;
   }
-  body.querySelectorAll('input').forEach(inp => {
-    const evt = inp.type === 'checkbox' ? 'change' : 'input';
+  container.innerHTML = groups.map(materialGroupHtml).join('');
+
+  container.querySelectorAll('input').forEach(inp => {
+    const field = inp.dataset.field;
+    const rerenders = field === 'quantity' || field === 'unitPrice' || field === 'purchased' || field === 'category';
+    // campos que disparam reagrupamento/recálculo usam "change" (ao sair do campo) em vez de
+    // "input" (a cada tecla), senão o re-render destruiria o campo no meio da digitação.
+    const evt = inp.type === 'checkbox' || rerenders ? 'change' : 'input';
     inp.addEventListener(evt, () => {
       const m = project.materials.find(x => x.id === inp.dataset.mat);
-      const field = inp.dataset.field;
       m[field] = inp.type === 'checkbox' ? inp.checked : (inp.type === 'number' ? Number(inp.value) : inp.value);
       saveState();
-      if (field === 'quantity' || field === 'unitPrice' || field === 'purchased') {
+      if (rerenders) {
         renderMaterials(project);
         updateTotalsDisplay(project);
         renderProjectList();
@@ -618,7 +736,7 @@ function renderMaterials(project) {
       }
     });
   });
-  body.querySelectorAll('.mat-delete').forEach(btn => btn.addEventListener('click', () => {
+  container.querySelectorAll('.mat-delete').forEach(btn => btn.addEventListener('click', () => {
     project.materials = project.materials.filter(x => x.id !== btn.dataset.mat);
     saveState();
     renderDetail();
@@ -637,13 +755,24 @@ function wireDetailEvents(project) {
     renderProjectList();
     renderSummary();
   });
+  document.getElementById('field-priority').addEventListener('change', (e) => {
+    updateProject(project.id, { priority: e.target.value });
+    renderProjectList();
+  });
   document.getElementById('field-category').addEventListener('input', (e) => updateProject(project.id, { category: e.target.value }));
+  document.getElementById('field-responsible').addEventListener('input', (e) => {
+    updateProject(project.id, { responsible: e.target.value });
+    renderProjectList();
+  });
+  document.getElementById('field-requested-by').addEventListener('input', (e) => updateProject(project.id, { requestedBy: e.target.value }));
+  document.getElementById('field-methodology').addEventListener('input', (e) => updateProject(project.id, { methodology: e.target.value }));
   document.getElementById('field-start').addEventListener('change', (e) => {
     updateProject(project.id, { startDate: e.target.value });
     renderProjectList();
   });
   document.getElementById('field-deadline').addEventListener('change', (e) => updateProject(project.id, { deadline: e.target.value }));
   document.getElementById('field-description').addEventListener('input', (e) => updateProject(project.id, { description: e.target.value }));
+  document.getElementById('field-importance').addEventListener('input', (e) => updateProject(project.id, { importance: e.target.value }));
 
   const progressInput = document.getElementById('field-progress');
   progressInput.addEventListener('input', (e) => {
@@ -671,7 +800,7 @@ function addTask(project) {
   const text = input.value.trim();
   if (!text) return;
   project.tasks = project.tasks || [];
-  project.tasks.push({ id: uid(), text, done: false, description: '', subtasks: [] });
+  project.tasks.push({ id: uid(), text, done: false, description: '', responsible: '', subtasks: [] });
   saveState();
   renderDetail();
   renderProjectList();
@@ -681,14 +810,16 @@ function addTask(project) {
 function addMaterial(project) {
   const desc = document.getElementById('new-mat-desc').value.trim();
   if (!desc) { document.getElementById('new-mat-desc').focus(); return; }
+  const category = document.getElementById('new-mat-category').value.trim();
   const purchaseOrder = document.getElementById('new-mat-po').value.trim();
+  const usageLocation = document.getElementById('new-mat-location').value.trim();
   const qty = Number(document.getElementById('new-mat-qty').value) || 1;
   const unit = document.getElementById('new-mat-unit').value.trim();
   const price = Number(document.getElementById('new-mat-price').value) || 0;
   const supplier = document.getElementById('new-mat-supplier').value.trim();
   project.materials = project.materials || [];
   project.materials.push({
-    id: uid(), description: desc, purchaseOrder, quantity: qty, unit, unitPrice: price,
+    id: uid(), description: desc, category, purchaseOrder, usageLocation, quantity: qty, unit, unitPrice: price,
     supplier, date: todayISO(), purchased: false,
   });
   saveState();

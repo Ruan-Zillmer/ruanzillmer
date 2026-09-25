@@ -3,12 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gestão de Projetos</title>
+<title>Gestão de Projetos - AUTOMAÇÃO</title>
+<link rel="icon" href="assets/logo-screw.png">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="topbar">
-  <h1>Gestão de Projetos</h1>
+  <div class="brand">
+    <img src="assets/logo-screw.png" alt="Screw" class="brand-logo">
+    <h1>Gestão de Projetos <span class="brand-sub">AUTOMAÇÃO</span></h1>
+  </div>
   <div class="topbar-actions">
     <button id="btn-new-project" class="btn btn-primary">+ Novo projeto</button>
     <div class="file-actions">
@@ -40,10 +44,14 @@
   <div class="project-card">
     <div class="project-card-header">
       <span class="project-card-name"></span>
-      <span class="badge status-badge"></span>
+      <span class="badge-group">
+        <span class="badge priority-badge"></span>
+        <span class="badge status-badge"></span>
+      </span>
     </div>
     <div class="progress-bar"><div class="progress-fill"></div></div>
     <div class="project-card-meta"></div>
+    <div class="project-card-sub"></div>
   </div>
 </template>
 

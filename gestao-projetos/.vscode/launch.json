@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Iniciar Gestão de Projetos (servidor)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/server/start.js",
+      "cwd": "${workspaceFolder}/server",
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "outputCapture": "std"
+    }
+  ]
+}

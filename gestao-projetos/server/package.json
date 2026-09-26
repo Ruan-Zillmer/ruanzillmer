@@ -5,7 +5,7 @@
   "description": "Servidor do app Gestão de Projetos - AUTOMAÇÃO (login, usuários e projetos compartilhados).",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node start.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.3.0",

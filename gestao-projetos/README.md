@@ -18,10 +18,13 @@ Copie a pasta `gestao-projetos` inteira (a mesma que você já tem, incluindo a 
 
 ### 3. Iniciar o servidor
 
-- **Windows**: entre na pasta `gestao-projetos/server` e dê duplo clique em `iniciar-servidor.bat`. Na primeira vez ele instala tudo sozinho (pode demorar um minuto) e depois já inicia.
-- **Linux/Mac**: abra um terminal na pasta `gestao-projetos/server` e rode `./iniciar-servidor.sh` (se der erro de permissão, rode antes `chmod +x iniciar-servidor.sh`).
+Três jeitos de fazer isso — use o que preferir:
 
-Uma janela/terminal vai ficar aberta mostrando `Gestão de Projetos - AUTOMAÇÃO rodando em http://localhost:3000` — **deixe essa janela aberta**, é ela que mantém o servidor no ar. Pode minimizar, só não feche.
+- **Pelo VSCode** (se você abriu a pasta `gestao-projetos` no VSCode): aperte **F5** (ou vá em "Run and Debug" → ▷). Ele já instala as dependências sozinho na primeira vez e mostra o log no terminal integrado.
+- **Windows** (sem VSCode): entre na pasta `gestao-projetos/server` e dê duplo clique em `iniciar-servidor.bat`.
+- **Linux/Mac** (sem VSCode): abra um terminal na pasta `gestao-projetos/server` e rode `./iniciar-servidor.sh` (se der erro de permissão, rode antes `chmod +x iniciar-servidor.sh`).
+
+Uma janela/terminal vai ficar aberta mostrando `Gestão de Projetos - AUTOMAÇÃO rodando em http://localhost:3000` — **deixe essa janela aberta** (ou a aba de debug do VSCode), é ela que mantém o servidor no ar. Pode minimizar, só não feche/pare.
 
 ### 4. Descobrir o endereço na rede
 
@@ -89,17 +92,21 @@ O servidor já salva tudo sozinho no banco de dados (`server/data/gestao.db`). V
 
 ```
 gestao-projetos/
-├── index.html                    # estrutura da página (logo já embutido, não depende de outro arquivo de imagem)
+├── .vscode/
+│   ├── launch.json               # aperte F5 no VSCode para iniciar tudo
+│   └── tasks.json                # alternativa: Ctrl+Shift+B
+├── index.html                     # estrutura da página (logo já embutido, não depende de outro arquivo de imagem)
 ├── style.css                      # aparência
 ├── app.js                         # toda a lógica de tela (fala com o servidor pela API)
 ├── assets/
 │   └── logo-screw.png            # arquivo de referência do logotipo (opcional, não é carregado pelo app)
 ├── server/                        # o servidor que fica sempre ligado
+│   ├── start.js                  # ponto de entrada: instala dependências (se faltar) e inicia
 │   ├── server.js                 # a API (login, usuários, projetos) e quem serve a página
 │   ├── db.js                     # conexão com o banco de dados (SQLite)
 │   ├── package.json              # lista de dependências (Express, SQLite, etc.)
-│   ├── iniciar-servidor.bat      # duplo clique para iniciar no Windows
-│   ├── iniciar-servidor.sh       # rodar no Linux/Mac (./iniciar-servidor.sh)
+│   ├── iniciar-servidor.bat      # duplo clique para iniciar no Windows (sem VSCode)
+│   ├── iniciar-servidor.sh       # rodar no Linux/Mac (sem VSCode): ./iniciar-servidor.sh
 │   └── data/                     # criado sozinho: banco de dados com usuários e projetos
 └── README.md                      # este arquivo
 ```

@@ -18,13 +18,20 @@ Copie a pasta `gestao-projetos` inteira (a mesma que você já tem, incluindo a 
 
 ### 3. Iniciar o servidor
 
-Três jeitos de fazer isso — use o que preferir:
+**Jeito mais simples (Windows), só com o que já vem no computador + o Node.js do passo 1:**
 
-- **Pelo VSCode** (se você abriu a pasta `gestao-projetos` no VSCode): aperte **F5** (ou vá em "Run and Debug" → ▷). Ele já instala as dependências sozinho na primeira vez e mostra o log no terminal integrado.
-- **Windows** (sem VSCode): entre na pasta `gestao-projetos/server` e dê duplo clique em `iniciar-servidor.bat`.
-- **Linux/Mac** (sem VSCode): abra um terminal na pasta `gestao-projetos/server` e rode `./iniciar-servidor.sh` (se der erro de permissão, rode antes `chmod +x iniciar-servidor.sh`).
+1. Abra a pasta `gestao-projetos\server` no Explorador de Arquivos.
+2. Dê duplo clique em `iniciar-servidor.bat`.
 
-Uma janela/terminal vai ficar aberta mostrando `Gestão de Projetos - AUTOMAÇÃO rodando em http://localhost:3000` — **deixe essa janela aberta** (ou a aba de debug do VSCode), é ela que mantém o servidor no ar. Pode minimizar, só não feche/pare.
+Isso já abre uma janela de terminal sozinho e inicia tudo. Se o Node.js não estiver instalado, essa janela agora avisa claramente e te manda direto pro passo 1 — nesse caso, instale o Node.js e dê duplo clique de novo.
+
+Se preferir digitar manualmente em vez de duplo clique: abra o Terminal do Windows (ou Prompt de Comando), entre na pasta com `cd caminho\para\gestao-projetos\server` e rode `node start.js`.
+
+> **Linux/Mac**: abra um terminal na pasta `gestao-projetos/server` e rode `./iniciar-servidor.sh` (se der erro de permissão, rode antes `chmod +x iniciar-servidor.sh`).
+>
+> **Usa VSCode e prefere apertar F5?** Também funciona (veja a pasta `.vscode/`) — mas exige o Node.js instalado e o VSCode reiniciado depois da instalação para reconhecê-lo. Se dor de cabeça, use o `.bat` acima, que é mais direto.
+
+Uma janela/terminal vai ficar aberta mostrando `Gestão de Projetos - AUTOMAÇÃO rodando em http://localhost:3000` — **deixe essa janela aberta**, é ela que mantém o servidor no ar. Pode minimizar, só não feche/pare.
 
 ### 4. Descobrir o endereço na rede
 

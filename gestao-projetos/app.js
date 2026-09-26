@@ -4,6 +4,7 @@ const STORAGE_KEY = 'gestao-projetos:data:v1';
 const HANDLE_DB = 'gestao-projetos-handles';
 const HANDLE_STORE = 'handles';
 const HANDLE_KEY = 'dataFile';
+const CURRENT_USER_KEY = 'gestao-projetos:current-user';
 
 const STATUS_OPTIONS = [
   { value: 'planejamento', label: 'Planejamento' },
@@ -116,6 +117,7 @@ let state = { projects: [] };
 let selectedProjectId = null;
 let fileHandle = null;
 let saveToFileTimer = null;
+let currentUser = null;
 
 function uid() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -132,12 +134,15 @@ function loadState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.projects)) return parsed;
+      if (parsed && Array.isArray(parsed.projects)) {
+        if (!Array.isArray(parsed.users)) parsed.users = [];
+        return parsed;
+      }
     }
   } catch (e) {
     console.error('Falha ao carregar dados salvos', e);
   }
-  return { projects: [] };
+  return { projects: [], users: [] };
 }
 
 function persistLocal() {
@@ -228,12 +233,12 @@ async function openDataFile() {
     const text = await file.text();
     const parsed = JSON.parse(text);
     if (!parsed || !Array.isArray(parsed.projects)) throw new Error('Arquivo inválido');
-    state = parsed;
+    state = ensureUsersArray(parsed);
     fileHandle = handle;
     await storeHandle(handle);
     document.getElementById('btn-save-file').disabled = false;
-    selectedProjectId = state.projects[0] ? state.projects[0].id : null;
     persistLocal();
+    syncSessionAfterStateChange();
     render();
     setStatus('Dados carregados de ' + handle.name + '. Este arquivo agora é sua fonte de dados.', 'ok');
   } catch (e) {
@@ -300,9 +305,9 @@ function importBackup(file) {
     try {
       const parsed = JSON.parse(reader.result);
       if (!parsed || !Array.isArray(parsed.projects)) throw new Error('Formato inválido');
-      state = parsed;
-      selectedProjectId = state.projects[0] ? state.projects[0].id : null;
+      state = ensureUsersArray(parsed);
       saveState();
+      syncSessionAfterStateChange();
       render();
       setStatus('Backup importado com sucesso.', 'ok');
     } catch (e) {
@@ -322,6 +327,223 @@ function setStatus(msg, kind) {
   clearTimeout(statusTimer);
   if (kind !== 'error') {
     statusTimer = setTimeout(() => { el.textContent = ''; el.className = 'status-bar'; }, 5000);
+  }
+}
+
+// ---------- autenticação ----------
+// Login "de cortesia": separa o que cada pessoa vê no dia a dia, mas não é uma
+// barreira de segurança de verdade (não há servidor validando nada — os dados,
+// incluindo a lista de usuários, ficam nos mesmos arquivos que o app já usa).
+
+function ensureUsersArray(obj) {
+  if (!Array.isArray(obj.users)) obj.users = [];
+  return obj;
+}
+
+function randomSalt() {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function hashPassword(password, salt) {
+  const data = new TextEncoder().encode(salt + ':' + password);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function findUser(username) {
+  const normalized = (username || '').trim().toLowerCase();
+  return state.users.find(u => u.username.toLowerCase() === normalized);
+}
+
+async function createFirstAdmin(username, password) {
+  const salt = randomSalt();
+  const passwordHash = await hashPassword(password, salt);
+  const user = { id: uid(), username: username.trim(), salt, passwordHash, role: 'admin' };
+  state.users = [user];
+  // projetos criados antes de existir login passam a pertencer ao primeiro administrador,
+  // em vez de ficarem "órfãos" e sumirem da lista.
+  for (const p of state.projects) {
+    if (!p.ownerUsername) p.ownerUsername = user.username;
+  }
+  saveState();
+  return user;
+}
+
+async function createUser(username, password, role) {
+  const clean = (username || '').trim();
+  if (!clean) throw new Error('Informe um nome de usuário.');
+  if (findUser(clean)) throw new Error('Já existe um usuário com esse nome.');
+  if (!password) throw new Error('Informe uma senha.');
+  const salt = randomSalt();
+  const passwordHash = await hashPassword(password, salt);
+  const user = { id: uid(), username: clean, salt, passwordHash, role: role === 'admin' ? 'admin' : 'user' };
+  state.users.push(user);
+  saveState();
+  return user;
+}
+
+function deleteUser(id) {
+  const user = state.users.find(u => u.id === id);
+  if (!user) return;
+  if (currentUser && user.username === currentUser.username) {
+    throw new Error('Você não pode remover o próprio usuário logado.');
+  }
+  if (user.role === 'admin' && state.users.filter(u => u.role === 'admin').length <= 1) {
+    throw new Error('Precisa existir pelo menos um administrador.');
+  }
+  state.users = state.users.filter(u => u.id !== id);
+  saveState();
+}
+
+async function attemptLogin(username, password) {
+  const user = findUser(username);
+  if (!user) return { ok: false, message: 'Usuário não encontrado.' };
+  const hash = await hashPassword(password, user.salt);
+  if (hash !== user.passwordHash) return { ok: false, message: 'Senha incorreta.' };
+  return { ok: true, user };
+}
+
+function rememberUser(username) {
+  try { localStorage.setItem(CURRENT_USER_KEY, username); } catch (e) { /* ignora */ }
+}
+
+function forgetRememberedUser() {
+  try { localStorage.removeItem(CURRENT_USER_KEY); } catch (e) { /* ignora */ }
+}
+
+function visibleProjects() {
+  if (!currentUser) return [];
+  if (currentUser.role === 'admin') return state.projects;
+  return state.projects.filter(p => p.ownerUsername === currentUser.username);
+}
+
+function roleLabel(role) {
+  return role === 'admin' ? 'Administrador' : 'Usuário';
+}
+
+function loginSuccess(user) {
+  currentUser = user;
+  rememberUser(user.username);
+  selectedProjectId = visibleProjects()[0] ? visibleProjects()[0].id : null;
+  document.getElementById('login-screen').hidden = true;
+  document.getElementById('app-shell').hidden = false;
+  updateSessionUI();
+  render();
+}
+
+function logout() {
+  currentUser = null;
+  forgetRememberedUser();
+  selectedProjectId = null;
+  document.getElementById('app-shell').hidden = true;
+  document.getElementById('login-screen').hidden = false;
+  showLoginOrBootstrap();
+}
+
+function updateSessionUI() {
+  const label = document.getElementById('current-user-label');
+  const usersToggle = document.getElementById('btn-users-toggle');
+  if (!currentUser) return;
+  label.innerHTML = `<strong>${escapeHtml(currentUser.username)}</strong> <span class="badge ${currentUser.role === 'admin' ? 'status-em-andamento' : 'status-planejamento'}">${roleLabel(currentUser.role)}</span>`;
+  usersToggle.hidden = currentUser.role !== 'admin';
+}
+
+function syncSessionAfterStateChange() {
+  if (!currentUser) return;
+  const stillExists = findUser(currentUser.username);
+  if (!stillExists) { logout(); return; }
+  currentUser = stillExists;
+  updateSessionUI();
+  if (!visibleProjects().find(p => p.id === selectedProjectId)) {
+    selectedProjectId = visibleProjects()[0] ? visibleProjects()[0].id : null;
+  }
+}
+
+function showLoginOrBootstrap() {
+  const hasUsers = state.users.length > 0;
+  document.getElementById('login-bootstrap').hidden = hasUsers;
+  document.getElementById('login-form-wrap').hidden = !hasUsers;
+  document.getElementById('login-error').textContent = '';
+}
+
+function renderUsersPanel() {
+  const list = document.getElementById('users-list');
+  if (!list) return;
+  list.innerHTML = state.users.map(u => `
+    <div class="user-row">
+      <span class="user-name">${escapeHtml(u.username)}</span>
+      <span class="badge ${u.role === 'admin' ? 'status-em-andamento' : 'status-planejamento'}">${roleLabel(u.role)}</span>
+      <button class="icon-btn user-delete" data-user="${u.id}" title="Remover usuário">✕</button>
+    </div>
+  `).join('');
+  list.querySelectorAll('.user-delete').forEach(btn => btn.addEventListener('click', () => {
+    if (!confirm('Remover este usuário? Os projetos dele continuam existindo, só deixam de ter alguém logado como dono.')) return;
+    try {
+      deleteUser(btn.dataset.user);
+      renderUsersPanel();
+      renderProjectList();
+    } catch (e) {
+      document.getElementById('users-status-line').textContent = e.message;
+    }
+  }));
+}
+
+function wireAuthEvents() {
+  document.getElementById('form-bootstrap-admin').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('bootstrap-username').value;
+    const password = document.getElementById('bootstrap-password').value;
+    const confirmPassword = document.getElementById('bootstrap-password-confirm').value;
+    const errorEl = document.getElementById('login-error');
+    if (password !== confirmPassword) { errorEl.textContent = 'As senhas não coincidem.'; return; }
+    if (!username.trim() || !password) { errorEl.textContent = 'Preencha usuário e senha.'; return; }
+    const user = await createFirstAdmin(username, password);
+    loginSuccess(user);
+  });
+
+  document.getElementById('form-login').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('login-username').value;
+    const password = document.getElementById('login-password').value;
+    const result = await attemptLogin(username, password);
+    const errorEl = document.getElementById('login-error');
+    if (!result.ok) { errorEl.textContent = result.message; return; }
+    loginSuccess(result.user);
+  });
+
+  document.getElementById('btn-logout').addEventListener('click', logout);
+
+  document.getElementById('btn-users-toggle').addEventListener('click', () => {
+    const panel = document.getElementById('users-panel');
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden) renderUsersPanel();
+  });
+
+  document.getElementById('btn-create-user').addEventListener('click', async () => {
+    const username = document.getElementById('new-user-username').value;
+    const password = document.getElementById('new-user-password').value;
+    const role = document.getElementById('new-user-role').value;
+    const statusEl = document.getElementById('users-status-line');
+    try {
+      await createUser(username, password, role);
+      document.getElementById('new-user-username').value = '';
+      document.getElementById('new-user-password').value = '';
+      statusEl.textContent = 'Usuário criado.';
+      renderUsersPanel();
+    } catch (e) {
+      statusEl.textContent = e.message;
+    }
+  });
+}
+
+function initAuth() {
+  wireAuthEvents();
+  showLoginOrBootstrap();
+
+  const remembered = localStorage.getItem(CURRENT_USER_KEY);
+  const user = remembered ? findUser(remembered) : null;
+  if (user) {
+    loginSuccess(user);
   }
 }
 
@@ -404,6 +626,7 @@ function findProject(id) {
 function createProject() {
   const project = {
     id: uid(),
+    ownerUsername: currentUser ? currentUser.username : '',
     name: 'Novo projeto',
     description: '',
     category: '',
@@ -431,7 +654,10 @@ function deleteProject(id) {
   if (!project) return;
   if (!confirm(`Excluir o projeto "${project.name}"? Essa ação não pode ser desfeita.`)) return;
   state.projects = state.projects.filter(p => p.id !== id);
-  if (selectedProjectId === id) selectedProjectId = state.projects[0] ? state.projects[0].id : null;
+  if (selectedProjectId === id) {
+    const remaining = visibleProjects();
+    selectedProjectId = remaining[0] ? remaining[0].id : null;
+  }
   saveState();
   render();
 }
@@ -460,10 +686,11 @@ function render() {
 
 function renderSummary() {
   const el = document.getElementById('summary');
-  const total = state.projects.length;
-  const emAndamento = state.projects.filter(p => p.status === 'em-andamento').length;
-  const concluidos = state.projects.filter(p => p.status === 'concluido').length;
-  const gastoTotal = state.projects.reduce((sum, p) => sum + projectTotals(p).gasto, 0);
+  const projects = visibleProjects();
+  const total = projects.length;
+  const emAndamento = projects.filter(p => p.status === 'em-andamento').length;
+  const concluidos = projects.filter(p => p.status === 'concluido').length;
+  const gastoTotal = projects.reduce((sum, p) => sum + projectTotals(p).gasto, 0);
   el.innerHTML = `
     <div><div class="stat-value">${total}</div><div>Projetos</div></div>
     <div><div class="stat-value">${emAndamento}</div><div>Em andamento</div></div>
@@ -472,41 +699,68 @@ function renderSummary() {
   `;
 }
 
+function projectCardNode(tpl, project) {
+  const node = tpl.content.cloneNode(true);
+  const card = node.querySelector('.project-card');
+  card.dataset.id = project.id;
+  if (project.id === selectedProjectId) card.classList.add('selected');
+  node.querySelector('.project-card-name').textContent = project.name || '(sem nome)';
+  const badge = node.querySelector('.status-badge');
+  badge.textContent = statusLabel(project.status);
+  badge.classList.add(statusClass(project.status));
+  const priorityBadge = node.querySelector('.priority-badge');
+  priorityBadge.textContent = priorityLabel(project.priority);
+  priorityBadge.classList.add(priorityClass(project.priority));
+  const progress = computeProgress(project);
+  node.querySelector('.progress-fill').style.width = progress + '%';
+  const totals = projectTotals(project);
+  node.querySelector('.project-card-meta').innerHTML =
+    `<span>${formatDate(project.startDate)}</span><span>${progress}% · ${formatCurrency(totals.gasto)}</span>`;
+  if (project.responsible) node.querySelector('.project-card-sub').textContent = 'Responsável: ' + project.responsible;
+  card.addEventListener('click', () => { selectedProjectId = project.id; render(); });
+  return node;
+}
+
 function renderProjectList() {
   const list = document.getElementById('project-list');
   const tpl = document.getElementById('tpl-project-card');
   list.innerHTML = '';
-  if (state.projects.length === 0) {
+  const projects = visibleProjects();
+  if (projects.length === 0) {
     list.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Nenhum projeto ainda. Clique em "Novo projeto".</p>';
     return;
   }
-  for (const project of state.projects) {
-    const node = tpl.content.cloneNode(true);
-    const card = node.querySelector('.project-card');
-    card.dataset.id = project.id;
-    if (project.id === selectedProjectId) card.classList.add('selected');
-    node.querySelector('.project-card-name').textContent = project.name || '(sem nome)';
-    const badge = node.querySelector('.status-badge');
-    badge.textContent = statusLabel(project.status);
-    badge.classList.add(statusClass(project.status));
-    const priorityBadge = node.querySelector('.priority-badge');
-    priorityBadge.textContent = priorityLabel(project.priority);
-    priorityBadge.classList.add(priorityClass(project.priority));
-    const progress = computeProgress(project);
-    node.querySelector('.progress-fill').style.width = progress + '%';
-    const totals = projectTotals(project);
-    node.querySelector('.project-card-meta').innerHTML =
-      `<span>${formatDate(project.startDate)}</span><span>${progress}% · ${formatCurrency(totals.gasto)}</span>`;
-    if (project.responsible) node.querySelector('.project-card-sub').textContent = 'Responsável: ' + project.responsible;
-    card.addEventListener('click', () => { selectedProjectId = project.id; render(); });
-    list.appendChild(node);
+
+  if (currentUser && currentUser.role === 'admin') {
+    const groups = new Map();
+    for (const project of projects) {
+      const owner = project.ownerUsername || 'Sem responsável';
+      if (!groups.has(owner)) groups.set(owner, []);
+      groups.get(owner).push(project);
+    }
+    const owners = Array.from(groups.keys()).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    for (const owner of owners) {
+      const header = document.createElement('div');
+      header.className = 'owner-group-header';
+      header.textContent = owner;
+      list.appendChild(header);
+      for (const project of groups.get(owner)) {
+        list.appendChild(projectCardNode(tpl, project));
+      }
+    }
+    return;
+  }
+
+  for (const project of projects) {
+    list.appendChild(projectCardNode(tpl, project));
   }
 }
 
 function renderDetail() {
   const detail = document.getElementById('detail');
   const project = findProject(selectedProjectId);
-  if (!project) {
+  const allowed = project && visibleProjects().some(p => p.id === project.id);
+  if (!allowed) {
     detail.innerHTML = '<div class="empty-state"><p>Selecione um projeto na lista ao lado ou crie um novo projeto para começar.</p></div>';
     return;
   }
@@ -1196,8 +1450,7 @@ function escapeAttr(str) {
 // ---------- inicialização ----------
 
 function init() {
-  state = loadState();
-  if (state.projects.length > 0) selectedProjectId = state.projects[0].id;
+  state = ensureUsersArray(loadState());
 
   document.getElementById('btn-new-project').addEventListener('click', createProject);
   document.getElementById('btn-open-file').addEventListener('click', openDataFile);
@@ -1213,16 +1466,16 @@ function init() {
     document.getElementById('btn-open-file').title = 'Navegador sem suporte a este recurso; será usado o backup em arquivo .json';
   }
 
-  render();
+  initAuth();
   tryRestoreHandle();
 
   if (window.DriveSync) {
     window.DriveSync.setup({
       getCurrentState: () => state,
       onDataLoaded: (remoteState) => {
-        state = remoteState;
-        selectedProjectId = state.projects[0] ? state.projects[0].id : null;
+        state = ensureUsersArray(remoteState);
         persistLocal();
+        syncSessionAfterStateChange();
         render();
       },
       onStatus: (msg, kind) => setStatus(msg, kind),

@@ -10,6 +10,22 @@ Aplicativo de controle de projetos: prioridade, responsáveis, status, data de i
 
 Não é necessário internet para usar o app em si (só para sincronizar, se usar Google Drive) — é um site estático.
 
+## Login e usuários (leia o alerta de segurança)
+
+No primeiro uso, o app pede para criar um **usuário administrador** (usuário + senha). A partir daí:
+
+- **Administrador**: pode criar/remover outros usuários (botão "Usuários" no topo, escolhendo o papel: Administrador ou Usuário comum) e enxerga **todos os projetos de todo mundo**, agrupados pelo nome de quem criou cada um.
+- **Usuário comum**: só enxerga os projetos que ele mesmo criou. Todo projeto novo é automaticamente marcado como "dele".
+
+O login fica lembrado no navegador até clicar em **"Sair"**.
+
+> ⚠️ **Importante — isso não é um login com segurança de verdade.** Este app é só arquivos estáticos (HTML/CSS/JS), sem nenhum servidor validando nada. Isso significa:
+> - As senhas ficam guardadas (com um hash, não em texto puro, mas sem "tempero"/salt forte de verdade contra ataques sérios) dentro do mesmo arquivo de dados que todo mundo compartilha.
+> - Qualquer pessoa com um mínimo de conhecimento técnico (abrir o Console do navegador, ou o próprio `dados.json`) consegue ver a lista de usuários e, com trabalho, tentar quebrar uma senha, ou simplesmente ignorar a tela de login mexendo no código.
+> - O app decide o que **mostrar** para cada papel, mas o navegador de qualquer usuário comum ainda recebe o arquivo inteiro com os dados de todo mundo — só não exibe na tela.
+>
+> Ou seja: esse login serve para o dia a dia (cada um vê só o que importa pra ele, sem bagunçar o trabalho dos outros, e sem querer abrir o projeto errado), **não para proteger informação sensível de verdade contra alguém mal-intencionado**. Se isso se tornar necessário no futuro, aí sim precisa de um servidor de verdade por trás (backend com banco de dados) — o app já foi construído de um jeito que facilita migrar para isso depois, se um dia o servidor da empresa passar a permitir rodar esse tipo de programa.
+
 ## Como os dados são salvos
 
 ### Opção recomendada (Chrome ou Edge): vincular o arquivo `dados.json`
@@ -99,6 +115,7 @@ Nesse caso não dá para o app ler/gravar direto num arquivo dentro do Drive pel
 
 ## Funcionalidades
 
+- **Login com usuários e papéis** (administrador / usuário comum) — veja a seção acima sobre o que isso protege de verdade.
 - Cadastro de projetos: nome, descrição, categoria, **prioridade** (baixa/média/alta/urgente), status, data inicial e prazo.
 - **Responsável pelo projeto** e **quem solicitou** o projeto.
 - **Metodologia/ferramenta de gestão** usada (sugestões: Kanban, Scrum, PDCA, 5W2H, Cronograma/Gantt, PMBOK, Ágil, Waterfall — ou digite outra). Ao escolher uma delas, aparece uma seção "Ferramentas da metodologia" com a explicação de cada ferramenta típica **e uma versão funcional dela integrada às tarefas do projeto**:

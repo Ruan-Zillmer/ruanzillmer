@@ -54,6 +54,10 @@
 
 * { box-sizing: border-box; }
 
+/* Garante que [hidden] sempre esconda o elemento, mesmo quando uma classe
+   (ex: .login-screen com display:flex) tentaria mostrá-lo de novo. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;

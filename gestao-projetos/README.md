@@ -37,7 +37,11 @@ Se preferir digitar manualmente em vez de duplo clique: abra o Terminal do Windo
 
 > **Linux/Mac**: abra um terminal na pasta `gestao-projetos/server` e rode `./iniciar-servidor.sh` (se der erro de permissão, rode antes `chmod +x iniciar-servidor.sh`).
 >
-> **Usa VSCode e prefere apertar F5?** Também funciona (veja a pasta `.vscode/`) — mas exige o Node.js instalado e o VSCode reiniciado depois da instalação para reconhecê-lo. Se dor de cabeça, use o `.bat` acima, que é mais direto.
+> **Prefere abrir a pasta no VSCode em vez de mexer no Explorador de Arquivos?**
+> 1. VSCode → File → Open Folder → selecione a pasta `gestao-projetos`.
+> 2. Aperte **F5** (ou o ícone "Run and Debug" na barra lateral → ▷ verde).
+>
+> Isso roda o mesmo `iniciar-servidor.bat` de cima, só que dentro do terminal do próprio VSCode — usa a mesma detecção automática de Node.js normal ou portátil, então continua funcionando sem precisar de admin.
 
 Uma janela/terminal vai ficar aberta mostrando `Gestão de Projetos - AUTOMAÇÃO rodando em http://localhost:3000` — **deixe essa janela aberta**, é ela que mantém o servidor no ar. Pode minimizar, só não feche/pare.
 

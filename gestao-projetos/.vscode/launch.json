@@ -3,13 +3,10 @@
   "configurations": [
     {
       "name": "Iniciar Gestão de Projetos (servidor)",
-      "type": "node",
+      "type": "node-terminal",
       "request": "launch",
-      "program": "${workspaceFolder}/server/start.js",
-      "cwd": "${workspaceFolder}/server",
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen",
-      "outputCapture": "std"
+      "command": "iniciar-servidor.bat",
+      "cwd": "${workspaceFolder}/server"
     }
   ]
 }

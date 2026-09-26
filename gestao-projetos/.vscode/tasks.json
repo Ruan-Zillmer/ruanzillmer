@@ -4,8 +4,7 @@
     {
       "label": "Iniciar servidor (Gestão de Projetos)",
       "type": "shell",
-      "command": "npm",
-      "args": ["start"],
+      "command": "iniciar-servidor.bat",
       "options": {
         "cwd": "${workspaceFolder}/server"
       },

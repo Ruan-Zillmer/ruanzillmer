@@ -1,0 +1,28 @@
+Esta pasta existe para quem NÃO tem permissão de administrador para
+instalar o Node.js normalmente (comum em computador de empresa).
+
+Como usar:
+
+1. Em outro computador (ou navegador), baixe a versão "Windows Binary (.zip)"
+   do Node.js em: https://nodejs.org/en/download
+   (é um arquivo .zip, NÃO é o instalador .msi — não precisa instalar nada)
+
+2. Extraia o conteúdo do .zip DENTRO desta pasta "node-portable", de modo que
+   o arquivo "node.exe" fique direto aqui dentro, sem subpastas no meio.
+   Exemplo de como deve ficar:
+
+     server/
+       node-portable/
+         node.exe          <- este arquivo precisa estar aqui
+         npm
+         npm.cmd
+         node_modules/
+         ... (outros arquivos que vieram no zip)
+
+3. Dê duplo clique em "iniciar-servidor.bat" (na pasta server, um nível
+   acima desta). Ele detecta essa pasta automaticamente e usa esse Node.js
+   portátil, sem precisar de nenhuma instalação nem permissão de administrador.
+
+Se você TEM permissão de administrador neste computador, pode ignorar esta
+pasta e simplesmente instalar o Node.js normalmente pelo site nodejs.org —
+nesse caso o iniciar-servidor.bat usa a instalação normal automaticamente.

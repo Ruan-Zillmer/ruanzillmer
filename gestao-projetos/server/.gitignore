@@ -1,2 +1,6 @@
 node_modules/
 data/
+
+# binários do Node.js portátil (cada um baixa o seu, não versionamos aqui)
+node-portable/*
+!node-portable/LEIA-ME.txt

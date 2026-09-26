@@ -10,7 +10,15 @@ Só precisa ser feito uma vez, nesse computador.
 
 ### 1. Instalar o Node.js
 
-Baixe e instale a versão **LTS** em [nodejs.org](https://nodejs.org/) (é só clicar em "próximo" até terminar, igual instalar qualquer programa). Isso só precisa ser feito uma vez nesse computador.
+**Se você tem permissão de administrador** nesse computador: baixe e instale a versão **LTS** em [nodejs.org](https://nodejs.org/) (é só clicar em "próximo" até terminar, igual instalar qualquer programa).
+
+**Se você NÃO tem permissão de administrador** (comum em computador de empresa): dá pra usar o Node.js sem instalar nada.
+
+1. Em [nodejs.org/en/download](https://nodejs.org/en/download), baixe a versão **"Windows Binary (.zip)"** (não é o instalador `.msi`, é um `.zip` comum).
+2. Extraia o conteúdo do `.zip` dentro da pasta `gestao-projetos/server/node-portable` (que já vem na pasta do projeto), de forma que o arquivo `node.exe` fique direto dentro dela, sem subpastas no meio.
+3. Pronto — o `iniciar-servidor.bat` detecta essa pasta sozinho e usa esse Node.js portátil automaticamente, sem precisar de instalação nem permissão nenhuma.
+
+Isso só precisa ser feito uma vez nesse computador.
 
 ### 2. Copiar a pasta do projeto
 

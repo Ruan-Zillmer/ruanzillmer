@@ -60,24 +60,7 @@
   <div class="topbar-actions">
     <button id="btn-new-project" class="btn btn-primary">+ Novo projeto</button>
     <div class="file-actions">
-      <button id="btn-open-file" class="btn" title="Abrir um arquivo dados.json salvo no pendrive, Google Drive, etc.">Abrir arquivo de dados</button>
-      <button id="btn-save-file" class="btn" title="Salvar os dados atuais no arquivo vinculado" disabled>Salvar no arquivo</button>
-      <button id="btn-export" class="btn" title="Baixar um backup em .json">Exportar backup</button>
-      <button id="btn-import" class="btn" title="Carregar um backup em .json">Importar backup</button>
-      <input type="file" id="import-input" accept="application/json" hidden>
-      <div class="drive-wrap">
-        <button id="btn-drive-toggle" class="btn" title="Sincronizar automaticamente com o Google Drive (precisa de configuração única)">Google Drive</button>
-        <div id="drive-panel" class="drive-panel" hidden>
-          <div class="field">
-            <label for="drive-client-id">Client ID do Google (OAuth)</label>
-            <input id="drive-client-id" type="text" placeholder="xxxxx.apps.googleusercontent.com">
-          </div>
-          <button id="btn-drive-save-config" class="btn">Salvar Client ID</button>
-          <p class="drive-status" id="drive-status-line"></p>
-          <button id="btn-drive-connect" class="btn btn-primary">Conectar ao Google Drive</button>
-          <button id="btn-drive-disconnect" class="btn btn-danger" hidden>Desconectar</button>
-        </div>
-      </div>
+      <button id="btn-export" class="btn" title="Baixar uma cópia extra em .json (o servidor já salva tudo sozinho)">Exportar backup</button>
       <div class="drive-wrap">
         <button id="btn-users-toggle" class="btn" hidden>Usuários</button>
         <div id="users-panel" class="drive-panel users-panel" hidden>
@@ -143,8 +126,6 @@
 
 </div>
 
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="drive.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

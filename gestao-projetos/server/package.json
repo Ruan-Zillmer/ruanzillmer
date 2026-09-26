@@ -1,0 +1,16 @@
+{
+  "name": "gestao-projetos-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Servidor do app Gestão de Projetos - AUTOMAÇÃO (login, usuários e projetos compartilhados).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "bcryptjs": "^2.4.3",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0"
+  }
+}

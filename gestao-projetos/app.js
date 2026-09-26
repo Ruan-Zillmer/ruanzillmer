@@ -1,10 +1,6 @@
 'use strict';
 
-const STORAGE_KEY = 'gestao-projetos:data:v1';
-const HANDLE_DB = 'gestao-projetos-handles';
-const HANDLE_STORE = 'handles';
-const HANDLE_KEY = 'dataFile';
-const CURRENT_USER_KEY = 'gestao-projetos:current-user';
+const API = '/api';
 
 const STATUS_OPTIONS = [
   { value: 'planejamento', label: 'Planejamento' },
@@ -115,8 +111,6 @@ function methodologyKey(value) {
 
 let state = { projects: [] };
 let selectedProjectId = null;
-let fileHandle = null;
-let saveToFileTimer = null;
 let currentUser = null;
 
 function uid() {
@@ -127,168 +121,54 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// ---------- persistence: localStorage ----------
+// ---------- persistência: servidor (API + SQLite em server/) ----------
+// Todo o estado "de verdade" vive no servidor Node.js (pasta server/). O
+// navegador só mantém uma cópia em memória para desenhar a tela; toda
+// alteração é enviada para o servidor automaticamente (com um pequeno atraso
+// para agrupar teclas digitadas em sequência).
 
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.projects)) {
-        if (!Array.isArray(parsed.users)) parsed.users = [];
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error('Falha ao carregar dados salvos', e);
+async function apiFetch(path, options) {
+  const res = await fetch(API + path, Object.assign({
+    headers: { 'Content-Type': 'application/json' },
+  }, options));
+  if (res.status === 401) {
+    currentUser = null;
+    showLoginScreen();
+    throw new Error('Sessão expirada. Faça login novamente.');
   }
-  return { projects: [], users: [] };
+  return res;
 }
 
-function persistLocal() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (e) {
-    console.error('Falha ao salvar localmente', e);
-  }
+async function loadProjectsFromServer() {
+  const res = await apiFetch('/projects');
+  if (!res.ok) throw new Error('Não foi possível carregar os projetos do servidor.');
+  const data = await res.json();
+  state.projects = data.projects;
 }
 
+let saveTimer = null;
 function saveState() {
-  persistLocal();
-  scheduleFileSave();
-  if (window.DriveSync) window.DriveSync.scheduleSave(state);
-}
-
-// ---------- persistence: arquivo em pasta compartilhada (pendrive, Google Drive, etc.) via File System Access API ----------
-
-function fsApiSupported() {
-  return typeof window.showOpenFilePicker === 'function';
-}
-
-function openHandleDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(HANDLE_DB, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(HANDLE_STORE);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function storeHandle(handle) {
-  try {
-    const db = await openHandleDB();
-    const tx = db.transaction(HANDLE_STORE, 'readwrite');
-    tx.objectStore(HANDLE_STORE).put(handle, HANDLE_KEY);
-  } catch (e) {
-    console.warn('Não foi possível lembrar o arquivo vinculado', e);
-  }
-}
-
-async function loadStoredHandle() {
-  try {
-    const db = await openHandleDB();
-    return await new Promise((resolve, reject) => {
-      const tx = db.transaction(HANDLE_STORE, 'readonly');
-      const req = tx.objectStore(HANDLE_STORE).get(HANDLE_KEY);
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => reject(req.error);
-    });
-  } catch (e) {
-    return null;
-  }
-}
-
-async function tryRestoreHandle() {
-  if (!fsApiSupported()) return;
-  const handle = await loadStoredHandle();
-  if (!handle) return;
-  try {
-    const perm = await handle.queryPermission({ mode: 'readwrite' });
-    if (perm === 'granted') {
-      fileHandle = handle;
-      setStatus('Arquivo de dados vinculado: ' + handle.name, 'ok');
-      document.getElementById('btn-save-file').disabled = false;
-    } else {
-      setStatus('Arquivo vinculado anteriormente (' + handle.name + '). Clique em "Salvar no arquivo" para reconceder acesso.', 'warn');
-      fileHandle = handle;
-      document.getElementById('btn-save-file').disabled = false;
-    }
-  } catch (e) {
-    // handle inválido (arquivo removido, outro dispositivo, etc.)
-  }
-}
-
-async function openDataFile() {
-  if (!fsApiSupported()) {
-    setStatus('Seu navegador não suporta abrir arquivos diretamente. Use "Importar backup" no lugar.', 'warn');
-    document.getElementById('import-input').click();
-    return;
-  }
-  try {
-    const [handle] = await window.showOpenFilePicker({
-      types: [{ description: 'Dados do projeto (JSON)', accept: { 'application/json': ['.json'] } }],
-      excludeAcceptAllOption: false,
-    });
-    const file = await handle.getFile();
-    const text = await file.text();
-    const parsed = JSON.parse(text);
-    if (!parsed || !Array.isArray(parsed.projects)) throw new Error('Arquivo inválido');
-    state = ensureUsersArray(parsed);
-    fileHandle = handle;
-    await storeHandle(handle);
-    document.getElementById('btn-save-file').disabled = false;
-    persistLocal();
-    syncSessionAfterStateChange();
-    render();
-    setStatus('Dados carregados de ' + handle.name + '. Este arquivo agora é sua fonte de dados.', 'ok');
-  } catch (e) {
-    if (e.name !== 'AbortError') setStatus('Não foi possível abrir o arquivo: ' + e.message, 'error');
-  }
-}
-
-async function saveToFile(showFeedback) {
-  if (!fsApiSupported()) {
-    setStatus('Seu navegador não suporta salvar direto no arquivo. Use "Exportar backup".', 'warn');
-    return;
-  }
-  if (!fileHandle) {
+  const project = findProject(selectedProjectId);
+  if (!project) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
     try {
-      fileHandle = await window.showSaveFilePicker({
-        suggestedName: 'dados.json',
-        types: [{ description: 'Dados do projeto (JSON)', accept: { 'application/json': ['.json'] } }],
+      const res = await apiFetch(`/projects/${project.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ project }),
       });
-      await storeHandle(fileHandle);
-      document.getElementById('btn-save-file').disabled = false;
+      if (!res.ok) throw new Error('o servidor recusou salvar (código ' + res.status + ')');
+      setStatus('Salvo automaticamente às ' + new Date().toLocaleTimeString(), 'ok');
     } catch (e) {
-      if (e.name !== 'AbortError') setStatus('Não foi possível criar o arquivo: ' + e.message, 'error');
-      return;
+      setStatus('Erro ao salvar no servidor: ' + e.message, 'error');
     }
-  }
-  try {
-    const perm = await fileHandle.requestPermission({ mode: 'readwrite' });
-    if (perm !== 'granted') {
-      setStatus('Permissão negada para salvar no arquivo.', 'error');
-      return;
-    }
-    const writable = await fileHandle.createWritable();
-    await writable.write(JSON.stringify(state, null, 2));
-    await writable.close();
-    if (showFeedback) setStatus('Salvo em ' + fileHandle.name + ' às ' + new Date().toLocaleTimeString(), 'ok');
-  } catch (e) {
-    setStatus('Erro ao salvar no arquivo: ' + e.message, 'error');
-  }
+  }, 500);
 }
 
-function scheduleFileSave() {
-  if (!fileHandle) return;
-  clearTimeout(saveToFileTimer);
-  saveToFileTimer = setTimeout(() => saveToFile(false), 600);
-}
-
-// ---------- export / import manual (funciona em qualquer navegador) ----------
+// ---------- backup manual (cópia extra opcional, o servidor já salva sozinho) ----------
 
 function exportBackup() {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ projects: visibleProjects() }, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
@@ -297,24 +177,6 @@ function exportBackup() {
   a.click();
   URL.revokeObjectURL(url);
   setStatus('Backup exportado.', 'ok');
-}
-
-function importBackup(file) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const parsed = JSON.parse(reader.result);
-      if (!parsed || !Array.isArray(parsed.projects)) throw new Error('Formato inválido');
-      state = ensureUsersArray(parsed);
-      saveState();
-      syncSessionAfterStateChange();
-      render();
-      setStatus('Backup importado com sucesso.', 'ok');
-    } catch (e) {
-      setStatus('Não foi possível importar: ' + e.message, 'error');
-    }
-  };
-  reader.readAsText(file);
 }
 
 // ---------- status bar ----------
@@ -330,114 +192,57 @@ function setStatus(msg, kind) {
   }
 }
 
-// ---------- autenticação ----------
-// Login "de cortesia": separa o que cada pessoa vê no dia a dia, mas não é uma
-// barreira de segurança de verdade (não há servidor validando nada — os dados,
-// incluindo a lista de usuários, ficam nos mesmos arquivos que o app já usa).
-
-function ensureUsersArray(obj) {
-  if (!Array.isArray(obj.users)) obj.users = [];
-  return obj;
-}
-
-function randomSalt() {
-  return Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-async function hashPassword(password, salt) {
-  const data = new TextEncoder().encode(salt + ':' + password);
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-function findUser(username) {
-  const normalized = (username || '').trim().toLowerCase();
-  return state.users.find(u => u.username.toLowerCase() === normalized);
-}
-
-async function createFirstAdmin(username, password) {
-  const salt = randomSalt();
-  const passwordHash = await hashPassword(password, salt);
-  const user = { id: uid(), username: username.trim(), salt, passwordHash, role: 'admin' };
-  state.users = [user];
-  // projetos criados antes de existir login passam a pertencer ao primeiro administrador,
-  // em vez de ficarem "órfãos" e sumirem da lista.
-  for (const p of state.projects) {
-    if (!p.ownerUsername) p.ownerUsername = user.username;
-  }
-  saveState();
-  return user;
-}
-
-async function createUser(username, password, role) {
-  const clean = (username || '').trim();
-  if (!clean) throw new Error('Informe um nome de usuário.');
-  if (findUser(clean)) throw new Error('Já existe um usuário com esse nome.');
-  if (!password) throw new Error('Informe uma senha.');
-  const salt = randomSalt();
-  const passwordHash = await hashPassword(password, salt);
-  const user = { id: uid(), username: clean, salt, passwordHash, role: role === 'admin' ? 'admin' : 'user' };
-  state.users.push(user);
-  saveState();
-  return user;
-}
-
-function deleteUser(id) {
-  const user = state.users.find(u => u.id === id);
-  if (!user) return;
-  if (currentUser && user.username === currentUser.username) {
-    throw new Error('Você não pode remover o próprio usuário logado.');
-  }
-  if (user.role === 'admin' && state.users.filter(u => u.role === 'admin').length <= 1) {
-    throw new Error('Precisa existir pelo menos um administrador.');
-  }
-  state.users = state.users.filter(u => u.id !== id);
-  saveState();
-}
-
-async function attemptLogin(username, password) {
-  const user = findUser(username);
-  if (!user) return { ok: false, message: 'Usuário não encontrado.' };
-  const hash = await hashPassword(password, user.salt);
-  if (hash !== user.passwordHash) return { ok: false, message: 'Senha incorreta.' };
-  return { ok: true, user };
-}
-
-function rememberUser(username) {
-  try { localStorage.setItem(CURRENT_USER_KEY, username); } catch (e) { /* ignora */ }
-}
-
-function forgetRememberedUser() {
-  try { localStorage.removeItem(CURRENT_USER_KEY); } catch (e) { /* ignora */ }
-}
+// ---------- autenticação (validada pelo servidor) ----------
 
 function visibleProjects() {
-  if (!currentUser) return [];
-  if (currentUser.role === 'admin') return state.projects;
-  return state.projects.filter(p => p.ownerUsername === currentUser.username);
+  // o servidor já manda só os projetos que este usuário pode ver
+  // (todos, se for admin; só os dele, caso contrário) — não precisa filtrar de novo aqui.
+  return state.projects;
 }
 
 function roleLabel(role) {
   return role === 'admin' ? 'Administrador' : 'Usuário';
 }
 
-function loginSuccess(user) {
+function userErrorMessage(code) {
+  switch (code) {
+    case 'cannot_delete_self': return 'Você não pode remover o próprio usuário logado.';
+    case 'last_admin': return 'Precisa existir pelo menos um administrador.';
+    case 'username_taken': return 'Já existe um usuário com esse nome.';
+    case 'missing_fields': return 'Preencha usuário e senha.';
+    case 'invalid_credentials': return 'Usuário ou senha incorretos.';
+    default: return 'Não foi possível completar a operação.';
+  }
+}
+
+function showLoginScreen() {
+  document.getElementById('app-shell').hidden = true;
+  document.getElementById('login-screen').hidden = false;
+}
+
+async function loginSuccess(user) {
   currentUser = user;
-  rememberUser(user.username);
-  selectedProjectId = visibleProjects()[0] ? visibleProjects()[0].id : null;
   document.getElementById('login-screen').hidden = true;
   document.getElementById('app-shell').hidden = false;
   updateSessionUI();
+  try {
+    await loadProjectsFromServer();
+  } catch (e) {
+    setStatus(e.message, 'error');
+  }
+  selectedProjectId = visibleProjects()[0] ? visibleProjects()[0].id : null;
   render();
 }
 
-function logout() {
+async function logout() {
+  try { await apiFetch('/logout', { method: 'POST' }); } catch (e) { /* segue mesmo se a chamada falhar */ }
   currentUser = null;
-  forgetRememberedUser();
+  state.projects = [];
   selectedProjectId = null;
-  document.getElementById('app-shell').hidden = true;
-  document.getElementById('login-screen').hidden = false;
-  showLoginOrBootstrap();
+  showLoginScreen();
+  document.getElementById('login-bootstrap').hidden = true;
+  document.getElementById('login-form-wrap').hidden = false;
+  document.getElementById('login-error').textContent = '';
 }
 
 function updateSessionUI() {
@@ -448,44 +253,35 @@ function updateSessionUI() {
   usersToggle.hidden = currentUser.role !== 'admin';
 }
 
-function syncSessionAfterStateChange() {
-  if (!currentUser) return;
-  const stillExists = findUser(currentUser.username);
-  if (!stillExists) { logout(); return; }
-  currentUser = stillExists;
-  updateSessionUI();
-  if (!visibleProjects().find(p => p.id === selectedProjectId)) {
-    selectedProjectId = visibleProjects()[0] ? visibleProjects()[0].id : null;
-  }
-}
-
-function showLoginOrBootstrap() {
-  const hasUsers = state.users.length > 0;
-  document.getElementById('login-bootstrap').hidden = hasUsers;
-  document.getElementById('login-form-wrap').hidden = !hasUsers;
-  document.getElementById('login-error').textContent = '';
-}
-
-function renderUsersPanel() {
+async function renderUsersPanel() {
   const list = document.getElementById('users-list');
+  const statusEl = document.getElementById('users-status-line');
   if (!list) return;
-  list.innerHTML = state.users.map(u => `
-    <div class="user-row">
-      <span class="user-name">${escapeHtml(u.username)}</span>
-      <span class="badge ${u.role === 'admin' ? 'status-em-andamento' : 'status-planejamento'}">${roleLabel(u.role)}</span>
-      <button class="icon-btn user-delete" data-user="${u.id}" title="Remover usuário">✕</button>
-    </div>
-  `).join('');
-  list.querySelectorAll('.user-delete').forEach(btn => btn.addEventListener('click', () => {
-    if (!confirm('Remover este usuário? Os projetos dele continuam existindo, só deixam de ter alguém logado como dono.')) return;
-    try {
-      deleteUser(btn.dataset.user);
-      renderUsersPanel();
-      renderProjectList();
-    } catch (e) {
-      document.getElementById('users-status-line').textContent = e.message;
-    }
-  }));
+  try {
+    const res = await apiFetch('/users');
+    if (!res.ok) throw new Error('Não foi possível carregar os usuários.');
+    const data = await res.json();
+    list.innerHTML = data.users.map(u => `
+      <div class="user-row">
+        <span class="user-name">${escapeHtml(u.username)}</span>
+        <span class="badge ${u.role === 'admin' ? 'status-em-andamento' : 'status-planejamento'}">${roleLabel(u.role)}</span>
+        <button class="icon-btn user-delete" data-user="${u.id}" title="Remover usuário">✕</button>
+      </div>
+    `).join('');
+    list.querySelectorAll('.user-delete').forEach(btn => btn.addEventListener('click', async () => {
+      if (!confirm('Remover este usuário? Os projetos dele continuam existindo no servidor.')) return;
+      try {
+        const delRes = await apiFetch(`/users/${btn.dataset.user}`, { method: 'DELETE' });
+        const body = await delRes.json();
+        if (!delRes.ok) throw new Error(userErrorMessage(body.error));
+        renderUsersPanel();
+      } catch (e) {
+        statusEl.textContent = e.message;
+      }
+    }));
+  } catch (e) {
+    statusEl.textContent = e.message;
+  }
 }
 
 function wireAuthEvents() {
@@ -497,18 +293,37 @@ function wireAuthEvents() {
     const errorEl = document.getElementById('login-error');
     if (password !== confirmPassword) { errorEl.textContent = 'As senhas não coincidem.'; return; }
     if (!username.trim() || !password) { errorEl.textContent = 'Preencha usuário e senha.'; return; }
-    const user = await createFirstAdmin(username, password);
-    loginSuccess(user);
+    try {
+      const res = await fetch(API + '/bootstrap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(userErrorMessage(body.error));
+      await loginSuccess(body.user);
+    } catch (e) {
+      errorEl.textContent = e.message;
+    }
   });
 
   document.getElementById('form-login').addEventListener('submit', async (e) => {
     e.preventDefault();
     const username = document.getElementById('login-username').value;
     const password = document.getElementById('login-password').value;
-    const result = await attemptLogin(username, password);
     const errorEl = document.getElementById('login-error');
-    if (!result.ok) { errorEl.textContent = result.message; return; }
-    loginSuccess(result.user);
+    try {
+      const res = await fetch(API + '/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(userErrorMessage(body.error));
+      await loginSuccess(body.user);
+    } catch (e) {
+      errorEl.textContent = e.message;
+    }
   });
 
   document.getElementById('btn-logout').addEventListener('click', logout);
@@ -525,7 +340,12 @@ function wireAuthEvents() {
     const role = document.getElementById('new-user-role').value;
     const statusEl = document.getElementById('users-status-line');
     try {
-      await createUser(username, password, role);
+      const res = await apiFetch('/users', {
+        method: 'POST',
+        body: JSON.stringify({ username, password, role }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(userErrorMessage(body.error));
       document.getElementById('new-user-username').value = '';
       document.getElementById('new-user-password').value = '';
       statusEl.textContent = 'Usuário criado.';
@@ -536,14 +356,16 @@ function wireAuthEvents() {
   });
 }
 
-function initAuth() {
+async function initAuth() {
   wireAuthEvents();
-  showLoginOrBootstrap();
-
-  const remembered = localStorage.getItem(CURRENT_USER_KEY);
-  const user = remembered ? findUser(remembered) : null;
-  if (user) {
-    loginSuccess(user);
+  try {
+    const res = await fetch(API + '/session');
+    const data = await res.json();
+    document.getElementById('login-bootstrap').hidden = !data.needsBootstrap;
+    document.getElementById('login-form-wrap').hidden = data.needsBootstrap;
+    if (data.user) await loginSuccess(data.user);
+  } catch (e) {
+    setStatus('Não foi possível falar com o servidor. Verifique se ele está rodando (veja o README, pasta server/).', 'error');
   }
 }
 
@@ -623,7 +445,7 @@ function findProject(id) {
   return state.projects.find(p => p.id === id);
 }
 
-function createProject() {
+async function createProject() {
   const project = {
     id: uid(),
     ownerUsername: currentUser ? currentUser.username : '',
@@ -642,24 +464,34 @@ function createProject() {
     tasks: [],
     materials: [],
   };
-  state.projects.unshift(project);
-  selectedProjectId = project.id;
-  saveState();
-  render();
-  focusProjectName();
+  try {
+    const res = await apiFetch('/projects', { method: 'POST', body: JSON.stringify({ project }) });
+    if (!res.ok) throw new Error('O servidor recusou criar o projeto.');
+    state.projects.unshift(project);
+    selectedProjectId = project.id;
+    render();
+    focusProjectName();
+  } catch (e) {
+    setStatus(e.message, 'error');
+  }
 }
 
-function deleteProject(id) {
+async function deleteProject(id) {
   const project = findProject(id);
   if (!project) return;
   if (!confirm(`Excluir o projeto "${project.name}"? Essa ação não pode ser desfeita.`)) return;
-  state.projects = state.projects.filter(p => p.id !== id);
-  if (selectedProjectId === id) {
-    const remaining = visibleProjects();
-    selectedProjectId = remaining[0] ? remaining[0].id : null;
+  try {
+    const res = await apiFetch(`/projects/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('O servidor recusou remover o projeto.');
+    state.projects = state.projects.filter(p => p.id !== id);
+    if (selectedProjectId === id) {
+      const remaining = visibleProjects();
+      selectedProjectId = remaining[0] ? remaining[0].id : null;
+    }
+    render();
+  } catch (e) {
+    setStatus(e.message, 'error');
   }
-  saveState();
-  render();
 }
 
 function updateProject(id, patch) {
@@ -1450,37 +1282,10 @@ function escapeAttr(str) {
 // ---------- inicialização ----------
 
 function init() {
-  state = ensureUsersArray(loadState());
-
   document.getElementById('btn-new-project').addEventListener('click', createProject);
-  document.getElementById('btn-open-file').addEventListener('click', openDataFile);
-  document.getElementById('btn-save-file').addEventListener('click', () => saveToFile(true));
   document.getElementById('btn-export').addEventListener('click', exportBackup);
-  document.getElementById('btn-import').addEventListener('click', () => document.getElementById('import-input').click());
-  document.getElementById('import-input').addEventListener('change', (e) => {
-    if (e.target.files[0]) importBackup(e.target.files[0]);
-    e.target.value = '';
-  });
-
-  if (!fsApiSupported()) {
-    document.getElementById('btn-open-file').title = 'Navegador sem suporte a este recurso; será usado o backup em arquivo .json';
-  }
 
   initAuth();
-  tryRestoreHandle();
-
-  if (window.DriveSync) {
-    window.DriveSync.setup({
-      getCurrentState: () => state,
-      onDataLoaded: (remoteState) => {
-        state = ensureUsersArray(remoteState);
-        persistLocal();
-        syncSessionAfterStateChange();
-        render();
-      },
-      onStatus: (msg, kind) => setStatus(msg, kind),
-    });
-  }
 }
 
 document.addEventListener('DOMContentLoaded', init);

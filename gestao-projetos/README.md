@@ -1,121 +1,75 @@
 # Gestão de Projetos - AUTOMAÇÃO
 
-Aplicativo de controle de projetos: prioridade, responsáveis, status, data de início, prazo, avanço (tarefas/etapas) e compra de materiais organizada por categoria. Roda 100% no navegador, sem instalação e sem servidor — a pasta pode ficar num pendrive, no Google Drive ou em qualquer serviço parecido (OneDrive, Dropbox), para acessar de qualquer computador.
+Aplicativo de controle de projetos: prioridade, responsáveis, status, data de início, prazo, avanço (tarefas/etapas) e compra de materiais organizada por categoria.
 
-## Como usar
+Roda como um site + servidor: o servidor (Node.js) fica ligado num computador da empresa e guarda tudo num banco de dados. Todo mundo acessa pelo navegador, de qualquer computador da rede, e as alterações são salvas automaticamente — sem pendrive, sem Google Drive, sem exportar/importar nada.
 
-1. Coloque a pasta `gestao-projetos` inteira (com `index.html`, `style.css` e `app.js`) no local escolhido (pendrive, pasta do Google Drive, etc.).
-2. Em qualquer computador, abra o arquivo `index.html` com o navegador (Chrome ou Edge recomendados).
-3. Comece a cadastrar projetos, tarefas e materiais.
+## Como colocar para rodar no computador que fica sempre ligado
 
-Não é necessário internet para usar o app em si (só para sincronizar, se usar Google Drive) — é um site estático.
+Só precisa ser feito uma vez, nesse computador.
 
-## Login e usuários (leia o alerta de segurança)
+### 1. Instalar o Node.js
 
-No primeiro uso, o app pede para criar um **usuário administrador** (usuário + senha). A partir daí:
+Baixe e instale a versão **LTS** em [nodejs.org](https://nodejs.org/) (é só clicar em "próximo" até terminar, igual instalar qualquer programa). Isso só precisa ser feito uma vez nesse computador.
 
-- **Administrador**: pode criar/remover outros usuários (botão "Usuários" no topo, escolhendo o papel: Administrador ou Usuário comum) e enxerga **todos os projetos de todo mundo**, agrupados pelo nome de quem criou cada um.
+### 2. Copiar a pasta do projeto
+
+Copie a pasta `gestao-projetos` inteira (a mesma que você já tem, incluindo a subpasta `server`) para algum lugar fixo nesse computador, por exemplo `C:\gestao-projetos` (Windows) ou `~/gestao-projetos` (Linux/Mac).
+
+### 3. Iniciar o servidor
+
+- **Windows**: entre na pasta `gestao-projetos/server` e dê duplo clique em `iniciar-servidor.bat`. Na primeira vez ele instala tudo sozinho (pode demorar um minuto) e depois já inicia.
+- **Linux/Mac**: abra um terminal na pasta `gestao-projetos/server` e rode `./iniciar-servidor.sh` (se der erro de permissão, rode antes `chmod +x iniciar-servidor.sh`).
+
+Uma janela/terminal vai ficar aberta mostrando `Gestão de Projetos - AUTOMAÇÃO rodando em http://localhost:3000` — **deixe essa janela aberta**, é ela que mantém o servidor no ar. Pode minimizar, só não feche.
+
+### 4. Descobrir o endereço na rede
+
+No próprio computador servidor, acesse `http://localhost:3000` para testar.
+
+Para os **outros computadores** acessarem, eles precisam do IP desse computador na rede local:
+
+- **Windows**: abra o Prompt de Comando e digite `ipconfig` — procure "Endereço IPv4" (algo como `192.168.0.15`).
+- **Linux/Mac**: no terminal, digite `ip addr` ou `ifconfig` — procure algo parecido.
+
+Nos outros computadores, acesse pelo navegador: `http://<esse-IP>:3000` (ex: `http://192.168.0.15:3000`). Se não abrir, veja a seção **Problemas comuns** abaixo (geralmente é o firewall do Windows).
+
+### 5. Primeiro acesso
+
+Na primeira vez que alguém abrir o endereço, o app pede para criar o **usuário administrador**. Depois disso, o administrador cria os demais usuários pelo botão "Usuários" no topo.
+
+## Manter o servidor sempre rodando
+
+Como é "sempre ligado", o principal é deixar aquela janela do passo 3 aberta. Duas dicas para não perder isso num desligamento acidental ou reinício do Windows Update:
+
+- **Mais simples**: crie um atalho do `iniciar-servidor.bat` (Windows) e coloque na pasta de Inicialização do Windows (`Win + R`, digite `shell:startup`, cole o atalho lá). Assim, sempre que o computador ligar e alguém entrar na conta do Windows, o servidor sobe sozinho.
+- **Mais robusto** (não precisa ninguém logado no Windows): peça para o TI configurar como um serviço do Windows, usando uma ferramenta como o [NSSM](https://nssm.cc/), apontando para `node.exe server.js` dentro da pasta `server`. No Linux, o equivalente é criar um serviço `systemd`. Se quiser, posso te passar o passo a passo de qualquer uma dessas opções.
+
+## Problemas comuns
+
+- **Os outros computadores não conseguem abrir o endereço**: geralmente é o Firewall do Windows bloqueando a porta 3000. No computador servidor, abra "Firewall do Windows Defender" → "Configurações avançadas" → "Regras de Entrada" → "Nova Regra" → Porta → TCP → 3000 → Permitir.
+- **`npm install` falhou**: confirme que o Node.js foi instalado corretamente (`node -v` no terminal deve mostrar uma versão) e tente rodar `npm install` de novo dentro da pasta `server`.
+- **Preciso trocar a porta 3000**: defina a variável de ambiente `PORT` antes de iniciar (ex: no Windows, `set PORT=8080 && node server.js`).
+- **Esqueci a senha do administrador**: por enquanto não existe recuperação de senha pela tela; peça para eu te passar um comando para redefinir direto no banco de dados, ou crie um novo administrador apagando o arquivo `server/data/gestao.db` (isso apaga TODOS os projetos também — só faça isso se realmente não tiver outro jeito).
+
+## Login e usuários
+
+No primeiro uso, o app pede para criar o **usuário administrador**. A partir daí:
+
+- **Administrador**: cria/remove outros usuários (botão "Usuários" no topo, escolhendo o papel: Administrador ou Usuário comum) e enxerga **todos os projetos de todo mundo**, agrupados pelo nome de quem criou cada um.
 - **Usuário comum**: só enxerga os projetos que ele mesmo criou. Todo projeto novo é automaticamente marcado como "dele".
 
-O login fica lembrado no navegador até clicar em **"Sair"**.
+O login fica lembrado no navegador (por 30 dias) até clicar em **"Sair"**.
 
-> ⚠️ **Importante — isso não é um login com segurança de verdade.** Este app é só arquivos estáticos (HTML/CSS/JS), sem nenhum servidor validando nada. Isso significa:
-> - As senhas ficam guardadas (com um hash, não em texto puro, mas sem "tempero"/salt forte de verdade contra ataques sérios) dentro do mesmo arquivo de dados que todo mundo compartilha.
-> - Qualquer pessoa com um mínimo de conhecimento técnico (abrir o Console do navegador, ou o próprio `dados.json`) consegue ver a lista de usuários e, com trabalho, tentar quebrar uma senha, ou simplesmente ignorar a tela de login mexendo no código.
-> - O app decide o que **mostrar** para cada papel, mas o navegador de qualquer usuário comum ainda recebe o arquivo inteiro com os dados de todo mundo — só não exibe na tela.
->
-> Ou seja: esse login serve para o dia a dia (cada um vê só o que importa pra ele, sem bagunçar o trabalho dos outros, e sem querer abrir o projeto errado), **não para proteger informação sensível de verdade contra alguém mal-intencionado**. Se isso se tornar necessário no futuro, aí sim precisa de um servidor de verdade por trás (backend com banco de dados) — o app já foi construído de um jeito que facilita migrar para isso depois, se um dia o servidor da empresa passar a permitir rodar esse tipo de programa.
+> Diferente da versão anterior (sem servidor), agora esse login **é validado de verdade**: as senhas são conferidas no servidor com hash seguro (bcrypt) e nunca saem de lá; o navegador de um usuário comum literalmente **não recebe pela rede** os projetos de outras pessoas — o servidor decide o que enviar antes de responder. Ainda assim, é um sistema simples, pensado para uso interno da empresa: não tem recuperação de senha por e-mail, nem log de auditoria, por exemplo.
 
-## Como os dados são salvos
+## Backup
 
-### Opção recomendada (Chrome ou Edge): vincular o arquivo `dados.json`
-
-1. Clique em **"Salvar no arquivo"** na primeira vez — escolha salvar como `dados.json` dentro da mesma pasta (pendrive ou pasta sincronizada do Drive).
-2. A partir daí, toda alteração é gravada automaticamente nesse arquivo.
-3. Ao usar em outro computador, clique em **"Abrir arquivo de dados"** e selecione o `dados.json` — todos os projetos aparecem exatamente como você deixou.
-
-### Opção alternativa (qualquer navegador, inclusive Firefox/Safari): backup manual
-
-- **"Exportar backup"** baixa um arquivo `.json` com todos os dados.
-- **"Importar backup"** carrega um arquivo `.json` exportado anteriormente.
-
-Se o navegador do computador não suportar a opção acima, use exportar/importar manualmente para levar os dados de um computador para outro (salve o arquivo exportado dentro da mesma pasta).
-
-> Observação: enquanto você usa o app, os dados também ficam guardados automaticamente no navegador do computador atual (localStorage), como uma segurança extra — mas isso **não viaja com você**, por isso é importante usar uma das opções acima para levar os dados para outro computador.
-
-## Sincronização automática de verdade: Google Drive (API oficial)
-
-As opções acima (arquivo vinculado, pasta sincronizada, exportar/importar) sempre dependem de você lembrar de salvar/abrir o arquivo certo. Se você quer que **toda alteração salve sozinha na nuvem, como um servidor**, e funcione em qualquer computador só fazendo login com sua conta Google, use a integração com a API do Google Drive — é um recurso à parte, com uma configuração única (leva uns 10-15 minutos, só na primeira vez).
-
-### Por que precisa desse passo a passo
-
-O login do Google só funciona quando a página é aberta por um endereço `http://` ou `https://` de verdade — não funciona abrindo o `index.html` direto do computador (`file://`) nem de dentro de uma pasta do Drive. Por isso, para usar esse recurso, o app precisa estar hospedado em algum lugar. Como o projeto já está no GitHub, a forma mais simples e gratuita é publicá-lo com o **GitHub Pages**.
-
-### Passo 1 — Publicar o app com GitHub Pages (gratuito)
-
-1. No repositório no GitHub, vá em **Settings → Pages**.
-2. Em "Build and deployment", escolha **Source: Deploy from a branch**.
-3. Em "Branch", selecione a branch onde está o código (ex: `claude/wonderful-planck-ffh07l`, ou `main` depois de mesclar) e a pasta **/ (root)**.
-4. Clique em **Save** e espere 1-2 minutos.
-5. O site fica disponível em `https://ruan-zillmer.github.io/ruanzillmer/`, e o app especificamente em:
-   **`https://ruan-zillmer.github.io/ruanzillmer/gestao-projetos/`**
-
-> Como o repositório é público, o código do app fica publicamente acessível nesse endereço (qualquer um com o link consegue ver o app e criar seus próprios projetos — mas cada um só sincroniza com o **seu próprio** Google Drive, então seus dados continuam privados).
-
-### Passo 2 — Criar as credenciais do Google (Client ID OAuth)
-
-1. Acesse o [Google Cloud Console](https://console.cloud.google.com/) e crie um projeto novo (qualquer nome, ex: "Gestão de Projetos").
-2. Vá em **APIs e serviços → Biblioteca**, procure por **Google Drive API** e clique em **Ativar**.
-3. Vá em **APIs e serviços → Tela de permissão OAuth**:
-   - Tipo de usuário: **Externo**.
-   - Preencha nome do app, e-mail de suporte e e-mail de contato do desenvolvedor.
-   - Nas próximas telas pode avançar sem adicionar escopos manualmente.
-   - Em **Usuários de teste**, adicione o(s) seu(s) e-mail(s) do Google que vão usar o app (enquanto o app estiver em modo "Teste", só esses e-mails conseguem conectar — isso é normal e evita precisar passar pela revisão do Google).
-4. Vá em **APIs e serviços → Credenciais → Criar credenciais → ID do cliente OAuth**.
-   - Tipo de aplicativo: **Aplicativo da Web**.
-   - Em **Origens JavaScript autorizadas**, adicione: `https://ruan-zillmer.github.io`
-   - Clique em **Criar** e copie o **Client ID** gerado (termina com `.apps.googleusercontent.com`).
-
-### Passo 3 — Conectar o app
-
-1. Abra `https://ruan-zillmer.github.io/ruanzillmer/gestao-projetos/`.
-2. Clique no botão **"Google Drive"** no topo, cole o Client ID copiado e clique em **"Salvar Client ID"**.
-3. Clique em **"Conectar ao Google Drive"**, faça login com a conta que você adicionou como usuária de teste e aceite a permissão (o Google vai avisar que o app "não foi verificado" — isso é esperado para uso pessoal; clique em "Avançado" → "Acessar [nome do app] (não seguro)" para prosseguir).
-4. Pronto: o app cria (ou encontra) um arquivo `dados.json` no seu Google Drive e passa a salvar automaticamente ali a cada alteração, em qualquer computador onde você repetir o Passo 3 (o Client ID pode ser o mesmo, só logar de novo).
-
-> O app só enxerga o arquivo `dados.json` que ele mesmo cria no seu Drive (permissão mínima, `drive.file`) — nunca o restante dos seus arquivos.
-
-As formas de pendrive/pasta sincronizada continuam funcionando normalmente em paralelo, como um backup extra.
-
-## Usando com Google Drive em vez de pendrive
-
-Duas formas de fazer isso, dependendo se o computador tem o Google Drive instalado:
-
-### Com o Google Drive para computador (Backup and Sync / "Drive para computador") instalado
-
-Essa é a forma mais parecida com usar um pendrive, só que sem precisar carregar nada fisicamente:
-
-1. Instale o [Google Drive para computador](https://www.google.com/drive/download/) em cada computador que você usa (ele cria uma pasta local, tipo `G:\` ou `~/Google Drive`, que sincroniza sozinha com a nuvem).
-2. Coloque a pasta `gestao-projetos` dentro dessa pasta sincronizada.
-3. Abra o `index.html` local (dentro da pasta sincronizada) e vincule o `dados.json` nela mesma, como descrito acima.
-4. Em outro computador com o Drive instalado e a mesma conta, espere a sincronização terminar (ícone de "atualizado") e abra o mesmo `index.html`.
-
-**Cuidado com conflitos**: o Google Drive sincroniza arquivo por arquivo, não em tempo real feito um banco de dados. Se você editar o projeto em dois computadores ao mesmo tempo (ou trocar de computador antes da sincronização terminar), o Drive pode criar uma cópia conflitante do `dados.json` em vez de mesclar as mudanças. Para evitar isso: feche a aba do app e espere o ícone do Drive mostrar que terminou de sincronizar antes de continuar em outro computador.
-
-### Sem o Google Drive instalado (só o navegador, em drive.google.com)
-
-Nesse caso não dá para o app ler/gravar direto num arquivo dentro do Drive pelo navegador. O caminho é:
-
-1. Baixe a pasta `gestao-projetos` do Google Drive para o computador que está usando.
-2. Abra o `index.html` baixado normalmente.
-3. Ao terminar de mexer, use **"Exportar backup"** para baixar o `dados.json` atualizado e suba esse arquivo de volta para a pasta no Google Drive (substituindo o anterior).
-4. No próximo computador, baixe a pasta de novo (com o backup atualizado) e use **"Importar backup"** para carregar os dados.
-
-É mais manual, mas funciona em qualquer computador com navegador, sem precisar instalar nada.
+O servidor já salva tudo sozinho no banco de dados (`server/data/gestao.db`). Vale a pena, de vez em quando, copiar esse arquivo para outro lugar (outro HD, nuvem, etc.) como segurança contra perda do computador. O botão **"Exportar backup"** no app também baixa uma cópia em `.json` dos projetos que você está vendo no momento, útil antes de uma edição arriscada.
 
 ## Funcionalidades
 
-- **Login com usuários e papéis** (administrador / usuário comum) — veja a seção acima sobre o que isso protege de verdade.
+- **Login com usuários e papéis** (administrador / usuário comum), validado pelo servidor.
 - Cadastro de projetos: nome, descrição, categoria, **prioridade** (baixa/média/alta/urgente), status, data inicial e prazo.
 - **Responsável pelo projeto** e **quem solicitou** o projeto.
 - **Metodologia/ferramenta de gestão** usada (sugestões: Kanban, Scrum, PDCA, 5W2H, Cronograma/Gantt, PMBOK, Ágil, Waterfall — ou digite outra). Ao escolher uma delas, aparece uma seção "Ferramentas da metodologia" com a explicação de cada ferramenta típica **e uma versão funcional dela integrada às tarefas do projeto**:
@@ -135,13 +89,19 @@ Nesse caso não dá para o app ler/gravar direto num arquivo dentro do Drive pel
 
 ```
 gestao-projetos/
-├── index.html          # estrutura da página (logo já embutido no arquivo, não depende de outro arquivo de imagem)
-├── style.css            # aparência
-├── app.js               # toda a lógica (armazenamento, cálculos, interações)
-├── drive.js             # sincronização automática com o Google Drive (API oficial)
+├── index.html                    # estrutura da página (logo já embutido, não depende de outro arquivo de imagem)
+├── style.css                      # aparência
+├── app.js                         # toda a lógica de tela (fala com o servidor pela API)
 ├── assets/
-│   └── logo-screw.png  # arquivo de referência do logotipo (opcional, não é carregado pelo app)
-└── README.md            # este arquivo
+│   └── logo-screw.png            # arquivo de referência do logotipo (opcional, não é carregado pelo app)
+├── server/                        # o servidor que fica sempre ligado
+│   ├── server.js                 # a API (login, usuários, projetos) e quem serve a página
+│   ├── db.js                     # conexão com o banco de dados (SQLite)
+│   ├── package.json              # lista de dependências (Express, SQLite, etc.)
+│   ├── iniciar-servidor.bat      # duplo clique para iniciar no Windows
+│   ├── iniciar-servidor.sh       # rodar no Linux/Mac (./iniciar-servidor.sh)
+│   └── data/                     # criado sozinho: banco de dados com usuários e projetos
+└── README.md                      # este arquivo
 ```
 
 Sinta-se à vontade para pedir ajustes: novos campos, categorias de status, relatórios, etc.

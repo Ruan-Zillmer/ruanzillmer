@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
@@ -9,6 +10,9 @@ const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB) || 1024;
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+const INLINE_MIME = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' };
 const STATIC_ROOT = path.join(__dirname, '..');
 
 app.set('trust proxy', 1);
@@ -175,7 +179,104 @@ app.delete('/api/projects/:id', requireLogin, (req, res) => {
   const row = loadProjectRow(req.params.id);
   if (!row) return res.status(404).json({ error: 'not_found' });
   if (!canEditProject(req, row)) return res.status(403).json({ error: 'forbidden' });
+  removeProjectFiles(req.params.id);
   db.prepare('DELETE FROM projects WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ---------- arquivos anexados (desenhos 3D, PDFs, imagens...) ----------
+
+function diskPath(fileId) {
+  return path.join(db.FILES_DIR, fileId);
+}
+
+function removeProjectFiles(projectId) {
+  const rows = db.prepare('SELECT id FROM files WHERE project_id = ?').all(projectId);
+  rows.forEach((r) => fs.unlink(diskPath(r.id), () => {}));
+  db.prepare('DELETE FROM files WHERE project_id = ?').run(projectId);
+}
+
+function cleanFileName(raw) {
+  let name = 'arquivo';
+  try { name = decodeURIComponent(raw || 'arquivo'); } catch (e) { /* mantém padrão */ }
+  name = name.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').trim().slice(0, 200);
+  return name || 'arquivo';
+}
+
+// Corpo da requisição = bytes do arquivo (sem multipart), nome em X-File-Name.
+app.post('/api/projects/:id/files', requireLogin, (req, res) => {
+  const row = loadProjectRow(req.params.id);
+  if (!row) return res.status(404).json({ error: 'not_found' });
+  if (!canEditProject(req, row)) return res.status(403).json({ error: 'forbidden' });
+
+  const declared = Number(req.get('content-length')) || 0;
+  if (declared > MAX_UPLOAD_BYTES) {
+    res.set('Connection', 'close');
+    return res.status(413).json({ error: 'file_too_large', maxMb: MAX_UPLOAD_MB });
+  }
+
+  const fileId = uid();
+  const name = cleanFileName(req.get('x-file-name'));
+  const target = diskPath(fileId);
+  const out = fs.createWriteStream(target);
+  let size = 0;
+  let failed = false;
+
+  function fail(status, error) {
+    if (failed) return;
+    failed = true;
+    req.unpipe(out);
+    out.destroy();
+    fs.unlink(target, () => {});
+    if (!res.headersSent) {
+      res.set('Connection', 'close');
+      res.status(status).json({ error, maxMb: MAX_UPLOAD_MB });
+    }
+  }
+
+  req.on('data', (chunk) => {
+    size += chunk.length;
+    if (size > MAX_UPLOAD_BYTES) fail(413, 'file_too_large');
+  });
+  req.on('aborted', () => fail(400, 'aborted'));
+  req.on('error', () => fail(400, 'aborted'));
+  out.on('error', () => fail(500, 'write_failed'));
+  out.on('finish', () => {
+    if (failed) return;
+    if (size === 0) { fs.unlink(target, () => {}); return res.status(400).json({ error: 'empty_file' }); }
+    db.prepare('INSERT INTO files (id, project_id, name, size, uploaded_by, uploaded_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(fileId, row.id, name, size, req.user.username, new Date().toISOString());
+    res.json({ file: { id: fileId, name, size, uploadedBy: req.user.username, uploadedAt: new Date().toISOString() } });
+  });
+  req.pipe(out);
+});
+
+function loadFileFor(req, res) {
+  const row = loadProjectRow(req.params.id);
+  if (!row) { res.status(404).json({ error: 'not_found' }); return null; }
+  if (!canEditProject(req, row)) { res.status(403).json({ error: 'forbidden' }); return null; }
+  const file = db.prepare('SELECT * FROM files WHERE id = ? AND project_id = ?').get(req.params.fileId, row.id);
+  if (!file || !fs.existsSync(diskPath(file.id))) { res.status(404).json({ error: 'not_found' }); return null; }
+  return file;
+}
+
+app.get('/api/projects/:id/files/:fileId', requireLogin, (req, res) => {
+  const file = loadFileFor(req, res);
+  if (!file) return;
+  const ext = path.extname(file.name).slice(1).toLowerCase();
+  const inline = req.query.inline === '1' && INLINE_MIME[ext];
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('Content-Type', inline ? INLINE_MIME[ext] : 'application/octet-stream');
+  res.set('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(file.name)}`);
+  res.set('Cache-Control', 'private, max-age=0, must-revalidate');
+  res.sendFile(diskPath(file.id), { dotfiles: 'allow' });
+});
+
+app.delete('/api/projects/:id/files/:fileId', requireLogin, (req, res) => {
+  const file = loadFileFor(req, res);
+  if (!file) return;
+  db.prepare('DELETE FROM files WHERE id = ?').run(file.id);
+  fs.unlink(diskPath(file.id), () => {});
   res.json({ ok: true });
 });
 

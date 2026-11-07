@@ -74,6 +74,23 @@ Como é "sempre ligado", o principal é deixar aquela janela do passo 3 aberta. 
 - **Preciso trocar a porta 3000**: defina a variável de ambiente `PORT` antes de iniciar (ex: no Windows, `set PORT=8080 && node server.js`).
 - **Esqueci a senha do administrador**: por enquanto não existe recuperação de senha pela tela; peça para eu te passar um comando para redefinir direto no banco de dados, ou crie um novo administrador apagando o arquivo `server/data/gestao.db` (isso apaga TODOS os projetos também — só faça isso se realmente não tiver outro jeito).
 
+## Conceito do projeto e visualizador 3D
+
+Cada projeto tem a seção **Conceito do projeto**: uma descrição da ideia da máquina e o **visualizador 3D embutido**, onde você anexa o modelo da máquina completa e gira, aproxima e confere direto no navegador — sem instalar nada em quem só vai olhar.
+
+Cada **etapa** também aceita arquivos (vários, se quiser guardar revisões). Clique em **Visualizar** para abrir o desenho em tela cheia.
+
+- **Formatos 3D**: STEP/STP, IGES/IGS, BREP, STL, OBJ, GLB/GLTF, 3MF, PLY. (STEP e IGES são os que o SolidWorks, Inventor, Fusion e similares exportam como "neutros" — é o formato recomendado.)
+- **Também abre no navegador**: PDF e imagens (PNG, JPG...). Qualquer outro formato (ex: `.sldprt`, `.dwg`) é guardado no servidor e pode ser baixado, mas não tem visualização — exporte como STEP para visualizar.
+- **Ferramentas do visualizador**: vistas Iso/Frente/Topo/Direita, arestas, malha (wireframe), grade, câmera ortogonal, **corte por plano** (eixo X/Y/Z com controle deslizante), dimensões gerais (X × Y × Z, em mm para STEP/IGES) e **captura de imagem** da vista atual.
+- Arquivos grandes: o envio mostra uma barra de progresso. O limite padrão é 1 GB por arquivo; para mudar, defina a variável `MAX_UPLOAD_MB` antes de iniciar (ex: `set MAX_UPLOAD_MB=2048`).
+- Os arquivos ficam em `server/data/files/` e só quem tem acesso ao projeto (dono e administradores) consegue baixá-los — a verificação é feita no servidor.
+- O visualizador funciona **sem internet** (todas as bibliotecas já vêm na pasta `vendor/`). Se um dia precisar reconstruí-lo, veja `vendor-src/`.
+
+## Prazos por tópico
+
+As etapas do projeto são organizadas em **tópicos** (ex: Projeto mecânico, Elétrica e comando, Montagem). Cada tópico tem responsável, data de início e **prazo**, e mostra sozinho: *No prazo*, *Vence em N dias*, *Atrasado N dias* ou *Concluído*, com o avanço (etapas concluídas / total). Acima da lista há um **cronograma** com a barra de cada tópico e a linha de "hoje", e no topo do projeto os indicadores (avanço geral, tópicos concluídos, atrasos e próximo prazo). Etapas com data planejada depois do prazo do tópico recebem um aviso.
+
 ## Login e usuários
 
 No primeiro uso, o app pede para criar o **usuário administrador**. A partir daí:
@@ -87,7 +104,7 @@ O login fica lembrado no navegador (por 30 dias) até clicar em **"Sair"**.
 
 ## Backup
 
-O servidor já salva tudo sozinho no banco de dados (`server/data/gestao.db`). Vale a pena, de vez em quando, copiar esse arquivo para outro lugar (outro HD, nuvem, etc.) como segurança contra perda do computador. O botão **"Exportar backup"** no app também baixa uma cópia em `.json` dos projetos que você está vendo no momento, útil antes de uma edição arriscada.
+O servidor já salva tudo sozinho: os dados no banco `server/data/gestao.db` e os desenhos/arquivos anexados em `server/data/files/`. **Copie a pasta `server/data` inteira** (banco + arquivos) para backup — só o `.db` não leva os desenhos. Vale a pena, de vez em quando, copiar essa pasta para outro lugar (outro HD, nuvem, etc.) como segurança contra perda do computador. O botão **"Exportar backup"** no app também baixa uma cópia em `.json` dos projetos que você está vendo (sem os arquivos anexados), útil antes de uma edição arriscada.
 
 ## Funcionalidades
 
@@ -105,6 +122,7 @@ O servidor já salva tudo sozinho no banco de dados (`server/data/gestao.db`). V
 - Avanço do projeto: pode ser controlado manualmente (barra deslizante) ou automaticamente, criando uma lista de tarefas/etapas — o avanço passa a ser calculado pela proporção de tarefas concluídas.
 - Cada tarefa tem um **responsável pela etapa**, **data inicial**, **data planejada** de entrega e **data de entrega real** (para comparar planejado x realizado), uma descrição livre (para registrar o que foi feito) e pode ter subtarefas; quando há subtarefas, a tarefa é marcada como concluída automaticamente ao concluir todas elas. Essas mesmas datas alimentam o gráfico de Gantt na seção de ferramentas de metodologia, marcando em vermelho quando a entrega real passou da data planejada.
 - Compra de materiais por projeto: item, **categoria** (as compras são agrupadas por categoria como se fossem pastas, ex: Elétrica, Mecânica — edite o campo para mover um item de categoria), ordem de compra, **onde o item vai ser usado**, quantidade, unidade, preço unitário, fornecedor, data e se já foi comprado. Total previsto e total já gasto são calculados automaticamente, no geral e por categoria.
+- **Conceito do projeto** com visualizador 3D da máquina, **arquivos por etapa** e **prazos por tópico** (veja as seções acima).
 - Painel lateral com resumo geral (quantidade de projetos, em andamento, concluídos e gasto total) e, em cada projeto, prioridade e responsável em destaque.
 
 ## Estrutura dos arquivos
@@ -117,6 +135,11 @@ gestao-projetos/
 ├── index.html                     # estrutura da página (logo já embutido, não depende de outro arquivo de imagem)
 ├── style.css                      # aparência
 ├── app.js                         # toda a lógica de tela (fala com o servidor pela API)
+├── viewer-ui.js                   # anexos de arquivos + janela/painel do visualizador
+├── vendor/                        # bibliotecas prontas (three.js e leitor STEP) — funciona offline
+│   ├── viewer3d.js
+│   └── occt/                      # leitor de STEP/IGES (WebAssembly)
+├── vendor-src/                    # só para quem quiser reconstruir vendor/viewer3d.js (npm run build)
 ├── assets/
 │   └── logo-screw.png            # arquivo de referência do logotipo (opcional, não é carregado pelo app)
 ├── server/                        # o servidor que fica sempre ligado
@@ -126,7 +149,7 @@ gestao-projetos/
 │   ├── package.json              # lista de dependências (Express, SQLite, etc.)
 │   ├── iniciar-servidor.bat      # duplo clique para iniciar no Windows (sem VSCode)
 │   ├── iniciar-servidor.sh       # rodar no Linux/Mac (sem VSCode): ./iniciar-servidor.sh
-│   └── data/                     # criado sozinho: banco de dados com usuários e projetos
+│   └── data/                     # criado sozinho: banco de dados (gestao.db) e arquivos anexados (files/)
 └── README.md                      # este arquivo
 ```
 

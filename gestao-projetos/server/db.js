@@ -25,6 +25,21 @@ db.exec(`
     data TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS files (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    uploaded_by TEXT NOT NULL,
+    uploaded_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_files_project ON files(project_id);
 `);
+
+// Os arquivos enviados (desenhos 3D, PDFs...) ficam nesta pasta, um por id.
+const FILES_DIR = path.join(DATA_DIR, 'files');
+fs.mkdirSync(FILES_DIR, { recursive: true });
+db.FILES_DIR = FILES_DIR;
 
 module.exports = db;

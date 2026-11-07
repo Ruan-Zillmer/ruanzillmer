@@ -1,0 +1,13 @@
+{
+  "name": "gestao-projetos-vendor-build",
+  "private": true,
+  "description": "Só necessário para RECONSTRUIR vendor/viewer3d.js (visualizador 3D). Quem apenas usa o sistema não precisa disto.",
+  "scripts": {
+    "build": "esbuild viewer3d.js --bundle --minify --format=iife --legal-comments=none --outfile=../vendor/viewer3d.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "occt-import-js": "^0.0.23",
+    "three": "0.170.0"
+  }
+}

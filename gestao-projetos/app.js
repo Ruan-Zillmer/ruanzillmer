@@ -144,6 +144,18 @@ async function loadProjectsFromServer() {
   if (!res.ok) throw new Error('Não foi possível carregar os projetos do servidor.');
   const data = await res.json();
   state.projects = data.projects;
+  state.projects.forEach(normalizeProject);
+}
+
+// Projetos antigos não têm tópicos, conceito nem anexos: completa com valores vazios.
+function normalizeProject(p) {
+  p.topics = p.topics || [];
+  p.tasks = p.tasks || [];
+  p.concept = p.concept || { text: '', files: [] };
+  p.concept.files = p.concept.files || [];
+  p.concept.text = p.concept.text || '';
+  p.tasks.forEach((t) => { t.files = t.files || []; t.topicId = t.topicId || ''; });
+  return p;
 }
 
 let saveTimer = null;
@@ -216,6 +228,7 @@ function userErrorMessage(code) {
 }
 
 function showLoginScreen() {
+  if (window.FileUI) FileUI.disposeInline();
   document.getElementById('app-shell').hidden = true;
   document.getElementById('login-screen').hidden = false;
 }
@@ -461,6 +474,8 @@ async function createProject() {
     methodology: '',
     importance: '',
     progress: 0,
+    topics: [],
+    concept: { text: '', files: [] },
     tasks: [],
     materials: [],
   };
@@ -593,6 +608,7 @@ function renderDetail() {
   const project = findProject(selectedProjectId);
   const allowed = project && visibleProjects().some(p => p.id === project.id);
   if (!allowed) {
+    FileUI.disposeInline();
     detail.innerHTML = '<div class="empty-state"><p>Selecione um projeto na lista ao lado ou crie um novo projeto para começar.</p></div>';
     return;
   }
@@ -660,19 +676,39 @@ function renderDetail() {
       ${METHODOLOGY_SUGGESTIONS.map(o => `<option value="${escapeAttr(o)}"></option>`).join('')}
     </datalist>
 
+    <div class="kpis" id="kpis"></div>
+
+    <section class="block" id="concept-block">
+      <h3>Conceito do projeto <span class="h3-sub">visualizador da máquina</span></h3>
+      <div class="field full">
+        <label for="field-concept-text">Descrição do conceito</label>
+        <textarea id="field-concept-text" placeholder="Descreva a ideia geral da máquina: princípio de funcionamento, principais conjuntos, premissas...">${escapeHtml(project.concept.text)}</textarea>
+      </div>
+      <div class="file-box" id="concept-files"></div>
+      <div class="concept-viewer" id="concept-viewer"></div>
+    </section>
+
     <section class="block">
-      <h3>Avanço do projeto</h3>
+      <h3>Prazos por tópico</h3>
+      <div id="topic-timeline"></div>
+    </section>
+
+    <section class="block">
+      <h3>Tópicos e etapas</h3>
       <div class="progress-display">
         <input id="field-progress" type="range" min="0" max="100" step="5" value="${progress}" ${progressLocked ? 'disabled' : ''}>
         <span class="pct">${progress}%</span>
       </div>
-      ${progressLocked ? '<p style="font-size:12px;color:var(--text-muted);margin:6px 0 0;">O avanço é calculado automaticamente pelas tarefas concluídas abaixo. Desmarque todas as tarefas para voltar ao controle manual.</p>' : ''}
+      ${progressLocked ? '<p class="hint">O avanço é calculado automaticamente pelas etapas concluídas. Desmarque todas as etapas para voltar ao controle manual.</p>' : ''}
 
-      <div class="checklist" id="checklist" style="margin-top:12px;"></div>
-      <div class="add-row-form">
-        <input id="new-task-text" type="text" placeholder="Nova tarefa/etapa" style="flex:1;min-width:200px;">
-        <button id="btn-add-task" class="btn">+ Adicionar tarefa</button>
+      <div class="add-row-form topic-add-form">
+        <input id="new-topic-name" type="text" placeholder="Novo tópico (ex: Projeto mecânico, Elétrica, Montagem)" style="flex:1;min-width:220px;">
+        <input id="new-topic-responsible" type="text" placeholder="Responsável" style="width:150px;">
+        <label class="inline-label">Prazo <input id="new-topic-deadline" type="date"></label>
+        <button id="btn-add-topic" class="btn btn-primary">+ Adicionar tópico</button>
       </div>
+
+      <div class="checklist" id="checklist"></div>
     </section>
 
     <section class="block">
@@ -705,6 +741,9 @@ function renderDetail() {
   `;
 
   wireDetailEvents(project);
+  renderKpis(project);
+  renderConcept(project);
+  renderTopicTimeline(project);
   renderChecklist(project);
   renderMethodologyTools(project);
   renderMaterials(project);
@@ -942,20 +981,163 @@ function wireMethodologyToolEvents(project) {
   }));
 }
 
-function taskCardHtml(task) {
+// ---------- prazos, tópicos e conceito ----------
+
+const collapsedTopics = new Set();
+const conceptSelection = {}; // projectId -> id do arquivo exibido no visualizador do conceito
+
+function daysUntil(iso) {
+  if (!iso) return null;
+  const target = new Date(iso + 'T00:00:00');
+  const today = new Date(todayISO() + 'T00:00:00');
+  return Math.round((target - today) / 86400000);
+}
+
+function tasksOfTopic(project, topicId) {
+  return (project.tasks || []).filter(t => (t.topicId || '') === (topicId || ''));
+}
+
+function topicStats(project, topic) {
+  const tasks = tasksOfTopic(project, topic.id);
+  const done = tasks.filter(taskEffectiveDone).length;
+  const complete = tasks.length > 0 && done === tasks.length;
+  const days = daysUntil(topic.deadline);
+  let state = 'none';
+  let label = 'Sem prazo';
+  if (complete) { state = 'done'; label = 'Concluído'; }
+  else if (days !== null && days < 0) { state = 'late'; label = 'Atrasado ' + Math.abs(days) + (Math.abs(days) === 1 ? ' dia' : ' dias'); }
+  else if (days !== null && days === 0) { state = 'soon'; label = 'Vence hoje'; }
+  else if (days !== null && days <= 7) { state = 'soon'; label = 'Vence em ' + days + (days === 1 ? ' dia' : ' dias'); }
+  else if (days !== null) { state = 'ok'; label = 'No prazo · ' + days + ' dias'; }
+  return { tasks, done, total: tasks.length, pct: tasks.length ? Math.round(done / tasks.length * 100) : 0, complete, days, state, label };
+}
+
+function taskIsLate(task) {
+  if (taskEffectiveDone(task) || !task.plannedDate) return false;
+  return daysUntil(task.plannedDate) < 0;
+}
+
+function renderKpis(project) {
+  const el = document.getElementById('kpis');
+  if (!el) return;
+  const topics = project.topics || [];
+  const stats = topics.map(t => ({ topic: t, st: topicStats(project, t) }));
+  const doneTopics = stats.filter(x => x.st.complete).length;
+  const lateTopics = stats.filter(x => x.st.state === 'late').length;
+  const lateTasks = (project.tasks || []).filter(taskIsLate).length;
+  const upcoming = stats
+    .filter(x => !x.st.complete && x.topic.deadline && x.st.days >= 0)
+    .sort((a, b) => a.st.days - b.st.days)[0];
+  const totals = projectTotals(project);
+  const items = [
+    { label: 'Avanço geral', value: computeProgress(project) + '%', cls: '' },
+    { label: 'Tópicos concluídos', value: topics.length ? doneTopics + ' / ' + topics.length : '—', cls: '' },
+    { label: 'Em atraso', value: (lateTopics + lateTasks) ? lateTopics + ' tópico(s) · ' + lateTasks + ' etapa(s)' : 'Nada atrasado', cls: (lateTopics + lateTasks) ? 'bad' : 'good' },
+    { label: 'Próximo prazo', value: upcoming ? escapeHtml(upcoming.topic.name) + ' · ' + formatDate(upcoming.topic.deadline) : (project.deadline ? 'Projeto · ' + formatDate(project.deadline) : '—'), cls: '' },
+    { label: 'Compras realizadas', value: formatCurrency(totals.gasto), cls: '' },
+  ];
+  el.innerHTML = items.map(i => `<div class="kpi ${i.cls}"><span class="kpi-label">${i.label}</span><span class="kpi-value">${i.value}</span></div>`).join('');
+}
+
+function renderTopicTimeline(project) {
+  const el = document.getElementById('topic-timeline');
+  if (!el) return;
+  const topics = (project.topics || []).filter(t => t.deadline);
+  if (!topics.length) {
+    el.innerHTML = '<p class="hint">Cadastre tópicos com prazo (abaixo) para ver aqui o cronograma de entregas.</p>';
+    return;
+  }
+  const toMs = (iso) => new Date(iso + 'T00:00:00').getTime();
+  const starts = topics.map(t => toMs(t.startDate || project.startDate || t.deadline));
+  const ends = topics.map(t => toMs(t.deadline));
+  const today = toMs(todayISO());
+  let min = Math.min(...starts, ...ends);
+  let max = Math.max(...starts, ...ends);
+  if (project.deadline) max = Math.max(max, toMs(project.deadline));
+  min = Math.min(min, today);
+  max = Math.max(max, today);
+  const span = Math.max(max - min, 86400000);
+  const pos = (ms) => ((ms - min) / span * 100).toFixed(2);
+  const rows = topics.map((t, i) => {
+    const st = topicStats(project, t);
+    const left = Number(pos(Math.min(starts[i], ends[i])));
+    const width = Math.max(Number(pos(ends[i])) - left, 1.2);
+    return `<div class="tl-row">
+      <div class="tl-label" title="${escapeAttr(t.name)}">${escapeHtml(t.name || 'Sem nome')}</div>
+      <div class="tl-track">
+        <div class="tl-bar state-${st.state}" style="left:${left}%;width:${width}%"><span class="tl-fill" style="width:${st.pct}%"></span></div>
+      </div>
+      <div class="tl-date">${formatDate(t.deadline)}</div>
+    </div>`;
+  }).join('');
+  el.innerHTML = `<div class="timeline">
+    <div class="tl-grid"><div class="tl-today" style="left:calc(var(--tl-label) + (100% - var(--tl-label) - var(--tl-date)) * ${pos(today)} / 100)"><span>Hoje</span></div></div>
+    ${rows}
+  </div>
+  <div class="tl-legend"><span class="dot state-ok"></span>No prazo <span class="dot state-soon"></span>Vence em até 7 dias <span class="dot state-late"></span>Atrasado <span class="dot state-done"></span>Concluído</div>`;
+}
+
+function renderConcept(project) {
+  const filesBox = document.getElementById('concept-files');
+  const host = document.getElementById('concept-viewer');
+  if (!filesBox || !host) return;
+  const files = project.concept.files;
+  const viewable = (f) => FileUI.kindOf(f.name) !== 'other';
+  const selected = () => files.find(f => f.id === conceptSelection[project.id] && viewable(f)) || files.find(viewable) || null;
+
+  function refreshViewer() {
+    const f = selected();
+    if (!f) {
+      FileUI.disposeInline();
+      host.innerHTML = '<div class="concept-empty"><strong>Nenhum modelo anexado</strong><span>Anexe o desenho 3D da máquina (STEP, STL, OBJ, GLB...) para visualizá-lo aqui, girar, medir e fazer cortes.</span></div>';
+    } else {
+      FileUI.mountInline(host, project, f);
+    }
+  }
+
+  FileUI.mountBox(filesBox, project, files, {
+    inlineSelect: true,
+    selectedId: () => { const f = selected(); return f ? f.id : null; },
+    onView: (f) => { conceptSelection[project.id] = f.id; refreshViewer(); renderConcept.rerenderBox(); },
+    onUploaded: (f) => { conceptSelection[project.id] = f.id; refreshViewer(); },
+    onDelete: () => refreshViewer(),
+    onChange: () => saveState(),
+  });
+  renderConcept.rerenderBox = () => renderConcept(project);
+  refreshViewer();
+}
+
+function topicOptionsHtml(project, current) {
+  return `<option value="">Sem tópico</option>` + (project.topics || [])
+    .map(t => `<option value="${escapeAttr(t.id)}" ${t.id === current ? 'selected' : ''}>${escapeHtml(t.name || 'Sem nome')}</option>`).join('');
+}
+
+function taskCardHtml(project, task) {
   const subtasks = task.subtasks || [];
   const hasSubtasks = subtasks.length > 0;
   const effectiveDone = taskEffectiveDone(task);
+  const topic = (project.topics || []).find(t => t.id === task.topicId);
+  const late = taskIsLate(task);
+  const overTopic = topic && topic.deadline && task.plannedDate && task.plannedDate > topic.deadline;
+  const flags = [
+    late ? '<span class="chip state-late">Etapa atrasada</span>' : '',
+    overTopic ? '<span class="chip state-soon" title="A data planejada desta etapa é depois do prazo do tópico">Passa do prazo do tópico</span>' : '',
+  ].join('');
   return `
     <div class="task-card${effectiveDone ? ' done' : ''}">
       <div class="task-card-header">
         <input type="checkbox" class="task-check" data-task="${task.id}" ${effectiveDone ? 'checked' : ''} ${hasSubtasks ? 'disabled' : ''}>
         <input type="text" class="task-text" data-task="${task.id}" value="${escapeAttr(task.text)}">
-        <button class="icon-btn task-delete" data-task="${task.id}" title="Remover tarefa">✕</button>
+        ${flags}
+        <button class="icon-btn task-delete" data-task="${task.id}" title="Remover etapa">✕</button>
       </div>
       <div class="task-meta-row">
-        <span>Responsável:</span>
-        <input type="text" class="task-responsible" data-task="${task.id}" value="${escapeAttr(task.responsible)}" placeholder="Nome">
+        <label class="inline-label">Responsável
+          <input type="text" class="task-responsible" data-task="${task.id}" value="${escapeAttr(task.responsible)}" placeholder="Nome">
+        </label>
+        ${(project.topics || []).length ? `<label class="inline-label">Tópico
+          <select class="task-topic" data-task="${task.id}">${topicOptionsHtml(project, task.topicId)}</select>
+        </label>` : ''}
       </div>
       <div class="task-meta-row task-dates-row">
         <label>Início<input type="date" class="task-start-date" data-task="${task.id}" value="${escapeAttr(task.startDate)}"></label>
@@ -963,7 +1145,9 @@ function taskCardHtml(task) {
         <label>Entrega real<input type="date" class="task-actual-date" data-task="${task.id}" value="${escapeAttr(task.actualDate)}"></label>
       </div>
       ${hasSubtasks ? '<p class="task-hint">Concluída automaticamente quando todas as subtarefas forem marcadas.</p>' : ''}
-      <textarea class="task-description" data-task="${task.id}" placeholder="Descrição do que foi feito nesta tarefa">${escapeHtml(task.description)}</textarea>
+      <textarea class="task-description" data-task="${task.id}" placeholder="Descrição do que foi feito nesta etapa">${escapeHtml(task.description)}</textarea>
+      <div class="task-files-label">Arquivos da etapa (desenhos 3D, PDFs, imagens)</div>
+      <div class="file-box task-files" data-task="${task.id}"></div>
       ${hasSubtasks ? `<div class="subtask-list">${subtasks.map(s => subtaskHtml(task, s)).join('')}</div>` : ''}
       <div class="add-row-form subtask-add-form">
         <input type="text" class="new-subtask-text" data-task="${task.id}" placeholder="Nova subtarefa">
@@ -983,14 +1167,106 @@ function subtaskHtml(task, sub) {
   `;
 }
 
+function topicSectionHtml(project, topic) {
+  // topic === null -> etapas que ainda não pertencem a nenhum tópico
+  const topicId = topic ? topic.id : '';
+  const tasks = tasksOfTopic(project, topicId);
+  const collapsed = collapsedTopics.has(topicId || '__none__');
+  const st = topic ? topicStats(project, topic) : null;
+  const header = topic ? `
+    <div class="topic-header">
+      <button class="topic-toggle" data-topic="${escapeAttr(topicId)}" aria-label="Recolher ou expandir">${collapsed ? '▸' : '▾'}</button>
+      <input type="text" class="topic-name" data-topic="${escapeAttr(topicId)}" value="${escapeAttr(topic.name)}" placeholder="Nome do tópico">
+      <span class="chip state-${st.state}">${st.label}</span>
+      <span class="topic-progress" title="${st.done} de ${st.total} etapas concluídas">
+        <span class="progress-bar"><span class="progress-fill" style="width:${st.pct}%"></span></span>
+        <span class="topic-progress-text">${st.done}/${st.total}</span>
+      </span>
+      <button class="icon-btn topic-delete" data-topic="${escapeAttr(topicId)}" title="Remover tópico (as etapas ficam sem tópico)">✕</button>
+    </div>
+    <div class="topic-meta">
+      <label class="inline-label">Responsável <input type="text" class="topic-responsible" data-topic="${escapeAttr(topicId)}" value="${escapeAttr(topic.responsible)}" placeholder="Nome"></label>
+      <label class="inline-label">Início <input type="date" class="topic-start" data-topic="${escapeAttr(topicId)}" value="${escapeAttr(topic.startDate)}"></label>
+      <label class="inline-label">Prazo <input type="date" class="topic-deadline" data-topic="${escapeAttr(topicId)}" value="${escapeAttr(topic.deadline)}"></label>
+    </div>` : `
+    <div class="topic-header">
+      <button class="topic-toggle" data-topic="" aria-label="Recolher ou expandir">${collapsed ? '▸' : '▾'}</button>
+      <span class="topic-name-static">Etapas sem tópico</span>
+      <span class="topic-progress-text">${tasks.length}</span>
+    </div>`;
+  const body = collapsed ? '' : `
+    <div class="topic-body">
+      ${tasks.map(t => taskCardHtml(project, t)).join('') || '<p class="hint">Nenhuma etapa neste tópico ainda.</p>'}
+      <div class="add-row-form">
+        <input type="text" class="new-task-text" data-topic="${escapeAttr(topicId)}" placeholder="Nova etapa${topic ? ' neste tópico' : ''}" style="flex:1;min-width:200px;">
+        <button class="btn add-task-btn" data-topic="${escapeAttr(topicId)}">+ Adicionar etapa</button>
+      </div>
+    </div>`;
+  return `<div class="topic${topic ? '' : ' topic-none'}${topic ? ' state-border-' + st.state : ''}">${header}${body}</div>`;
+}
+
 function renderChecklist(project) {
   const el = document.getElementById('checklist');
-  if (!project.tasks || project.tasks.length === 0) {
-    el.innerHTML = '<p style="font-size:12px;color:var(--text-muted);">Nenhuma tarefa cadastrada. O avanço pode ser ajustado manualmente acima.</p>';
-    return;
-  }
-  el.innerHTML = project.tasks.map(taskCardHtml).join('');
+  const topics = project.topics || [];
+  const orphans = tasksOfTopic(project, '');
+  const sections = topics.map(t => topicSectionHtml(project, t));
+  if (!topics.length || orphans.length) sections.push(topicSectionHtml(project, null));
+  el.innerHTML = sections.join('');
 
+  // ----- tópicos -----
+  const topicById = (id) => topics.find(t => t.id === id);
+  const refreshTopics = () => { renderKpis(project); renderTopicTimeline(project); renderChecklist(project); };
+  el.querySelectorAll('.topic-toggle').forEach(btn => btn.addEventListener('click', () => {
+    const key = btn.dataset.topic || '__none__';
+    if (collapsedTopics.has(key)) collapsedTopics.delete(key); else collapsedTopics.add(key);
+    renderChecklist(project);
+  }));
+  el.querySelectorAll('.topic-name').forEach(inp => inp.addEventListener('input', () => {
+    topicById(inp.dataset.topic).name = inp.value;
+    saveState();
+  }));
+  el.querySelectorAll('.topic-name').forEach(inp => inp.addEventListener('change', () => { renderTopicTimeline(project); renderKpis(project); }));
+  el.querySelectorAll('.topic-responsible').forEach(inp => inp.addEventListener('input', () => {
+    topicById(inp.dataset.topic).responsible = inp.value;
+    saveState();
+  }));
+  el.querySelectorAll('.topic-start').forEach(inp => inp.addEventListener('change', () => {
+    topicById(inp.dataset.topic).startDate = inp.value;
+    saveState();
+    refreshTopics();
+  }));
+  el.querySelectorAll('.topic-deadline').forEach(inp => inp.addEventListener('change', () => {
+    topicById(inp.dataset.topic).deadline = inp.value;
+    saveState();
+    refreshTopics();
+  }));
+  el.querySelectorAll('.topic-delete').forEach(btn => btn.addEventListener('click', () => {
+    const topic = topicById(btn.dataset.topic);
+    if (!confirm('Remover o tópico "' + (topic.name || 'sem nome') + '"? As etapas dele continuam no projeto, só ficam sem tópico.')) return;
+    project.topics = topics.filter(t => t.id !== topic.id);
+    (project.tasks || []).forEach(t => { if (t.topicId === topic.id) t.topicId = ''; });
+    saveState();
+    renderDetail();
+  }));
+  el.querySelectorAll('.add-task-btn').forEach(btn => btn.addEventListener('click', () => {
+    const input = el.querySelector(`.new-task-text[data-topic="${btn.dataset.topic}"]`);
+    addTask(project, btn.dataset.topic, input.value);
+  }));
+  el.querySelectorAll('.new-task-text').forEach(inp => inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addTask(project, inp.dataset.topic, inp.value);
+  }));
+
+  // ----- etapas -----
+  const taskById = (id) => project.tasks.find(t => t.id === id);
+  el.querySelectorAll('.task-files').forEach(box => {
+    const task = taskById(box.dataset.task);
+    FileUI.mountBox(box, project, task.files, { onChange: () => saveState() });
+  });
+  el.querySelectorAll('.task-topic').forEach(sel => sel.addEventListener('change', () => {
+    taskById(sel.dataset.task).topicId = sel.value;
+    saveState();
+    renderDetail();
+  }));
   el.querySelectorAll('.task-check').forEach(cb => cb.addEventListener('change', () => {
     const task = project.tasks.find(t => t.id === cb.dataset.task);
     task.done = cb.checked;
@@ -1016,25 +1292,20 @@ function renderChecklist(project) {
     saveState();
     renderMethodologyTools(project);
   }));
-  el.querySelectorAll('.task-start-date').forEach(inp => inp.addEventListener('change', () => {
+  const dateField = (selector, key) => el.querySelectorAll(selector).forEach(inp => inp.addEventListener('change', () => {
     const task = project.tasks.find(t => t.id === inp.dataset.task);
-    task.startDate = inp.value;
+    task[key] = inp.value;
     saveState();
     renderMethodologyTools(project);
+    refreshTopics();
   }));
-  el.querySelectorAll('.task-planned-date').forEach(inp => inp.addEventListener('change', () => {
-    const task = project.tasks.find(t => t.id === inp.dataset.task);
-    task.plannedDate = inp.value;
-    saveState();
-    renderMethodologyTools(project);
-  }));
-  el.querySelectorAll('.task-actual-date').forEach(inp => inp.addEventListener('change', () => {
-    const task = project.tasks.find(t => t.id === inp.dataset.task);
-    task.actualDate = inp.value;
-    saveState();
-    renderMethodologyTools(project);
-  }));
+  dateField('.task-start-date', 'startDate');
+  dateField('.task-planned-date', 'plannedDate');
+  dateField('.task-actual-date', 'actualDate');
   el.querySelectorAll('.task-delete').forEach(btn => btn.addEventListener('click', () => {
+    const task = project.tasks.find(t => t.id === btn.dataset.task);
+    if ((task.files || []).length && !confirm('Esta etapa tem ' + task.files.length + ' arquivo(s) anexado(s). Remover a etapa apaga esses arquivos do servidor. Continuar?')) return;
+    (task.files || []).forEach(f => fetch(`/api/projects/${encodeURIComponent(project.id)}/files/${encodeURIComponent(f.id)}`, { method: 'DELETE', credentials: 'same-origin' }).catch(() => {}));
     project.tasks = project.tasks.filter(t => t.id !== btn.dataset.task);
     saveState();
     renderDetail();
@@ -1228,27 +1499,43 @@ function wireDetailEvents(project) {
 
   document.getElementById('btn-delete-project').addEventListener('click', () => deleteProject(project.id));
 
-  document.getElementById('btn-add-task').addEventListener('click', () => addTask(project));
-  document.getElementById('new-task-text').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') addTask(project);
+  document.getElementById('field-concept-text').addEventListener('input', (e) => {
+    project.concept.text = e.target.value;
+    saveState();
+  });
+  document.getElementById('btn-add-topic').addEventListener('click', () => addTopic(project));
+  document.getElementById('new-topic-name').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addTopic(project);
   });
 
   document.getElementById('btn-add-material').addEventListener('click', () => addMaterial(project));
 }
 
-function addTask(project) {
-  const input = document.getElementById('new-task-text');
-  const text = input.value.trim();
+function addTask(project, topicId, text) {
+  text = (text || '').trim();
   if (!text) return;
   project.tasks = project.tasks || [];
   project.tasks.push({
     id: uid(), text, done: false, description: '', responsible: '', subtasks: [],
-    startDate: '', plannedDate: '', actualDate: '',
+    startDate: '', plannedDate: '', actualDate: '', topicId: topicId || '', files: [],
   });
   saveState();
   renderDetail();
   renderProjectList();
   renderSummary();
+}
+
+function addTopic(project) {
+  const name = document.getElementById('new-topic-name').value.trim();
+  if (!name) { document.getElementById('new-topic-name').focus(); return; }
+  project.topics.push({
+    id: uid(), name,
+    responsible: document.getElementById('new-topic-responsible').value.trim(),
+    startDate: '',
+    deadline: document.getElementById('new-topic-deadline').value,
+  });
+  saveState();
+  renderDetail();
 }
 
 function addMaterial(project) {

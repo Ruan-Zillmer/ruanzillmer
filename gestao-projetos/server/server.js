@@ -10,7 +10,7 @@ const db = require('./db');
 const mailer = require('./mailer');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 2523;
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB) || 1024;
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 const INLINE_MIME = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' };

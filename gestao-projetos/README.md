@@ -43,20 +43,20 @@ Se preferir digitar manualmente em vez de duplo clique: abra o Terminal do Windo
 >
 > Isso roda o mesmo `iniciar-servidor.bat` de cima, só que dentro do terminal do próprio VSCode — usa a mesma detecção automática de Node.js normal ou portátil, então continua funcionando sem precisar de admin.
 
-Uma janela/terminal vai ficar aberta mostrando `Gestão de Projetos - AUTOMAÇÃO rodando em http://localhost:3000` — **deixe essa janela aberta**, é ela que mantém o servidor no ar. Pode minimizar, só não feche/pare.
+Uma janela/terminal vai ficar aberta mostrando `Gestão de Projetos - AUTOMAÇÃO rodando em http://localhost:2523` — **deixe essa janela aberta**, é ela que mantém o servidor no ar. Pode minimizar, só não feche/pare.
 
 ### 4. Descobrir o endereço na rede
 
-Ao iniciar, a janela do servidor já mostra o endereço pronto, na linha **"Nos outros computadores da rede, abra no navegador: http://192.168.x.x:3000"**. É só usar esse.
+Ao iniciar, a janela do servidor já mostra o endereço pronto, na linha **"Nos outros computadores da rede, abra no navegador: http://192.168.x.x:2523"**. É só usar esse.
 
-No próprio computador servidor, acesse `http://localhost:3000` para testar.
+No próprio computador servidor, acesse `http://localhost:2523` para testar.
 
 Para os **outros computadores** acessarem, eles precisam do IP desse computador na rede local:
 
 - **Windows**: abra o Prompt de Comando e digite `ipconfig` — procure "Endereço IPv4" (algo como `192.168.0.15`).
 - **Linux/Mac**: no terminal, digite `ip addr` ou `ifconfig` — procure algo parecido.
 
-Nos outros computadores, acesse pelo navegador: `http://<esse-IP>:3000` (ex: `http://192.168.0.15:3000`). Se não abrir, veja a seção **Problemas comuns** abaixo (geralmente é o firewall do Windows).
+Nos outros computadores, acesse pelo navegador: `http://<esse-IP>:2523` (ex: `http://192.168.0.15:2523`). Se não abrir, veja a seção **Problemas comuns** abaixo (geralmente é o firewall do Windows).
 
 ### 5. Primeiro acesso
 
@@ -71,9 +71,9 @@ Como é "sempre ligado", o principal é deixar aquela janela do passo 3 aberta. 
 
 ## Problemas comuns
 
-- **Os outros computadores não conseguem abrir o endereço**: geralmente é o Firewall do Windows bloqueando a porta 3000. No computador servidor, abra "Firewall do Windows Defender" → "Configurações avançadas" → "Regras de Entrada" → "Nova Regra" → Porta → TCP → 3000 → Permitir.
+- **Os outros computadores não conseguem abrir o endereço**: geralmente é o Firewall do Windows bloqueando a porta 2523. No computador servidor, abra "Firewall do Windows Defender" → "Configurações avançadas" → "Regras de Entrada" → "Nova Regra" → Porta → TCP → 2523 → Permitir.
 - **`npm install` falhou**: confirme que o Node.js foi instalado corretamente (`node -v` no terminal deve mostrar uma versão) e tente rodar `npm install` de novo dentro da pasta `server`.
-- **Preciso trocar a porta 3000**: defina a variável de ambiente `PORT` antes de iniciar (ex: no Windows, `set PORT=8080 && node server.js`).
+- **Preciso trocar a porta 2523**: defina a variável de ambiente `PORT` antes de iniciar (ex: no Windows, `set PORT=8080 && node server.js`).
 - **Esqueci a senha do administrador**: por enquanto não existe recuperação de senha pela tela; peça para eu te passar um comando para redefinir direto no banco de dados, ou crie um novo administrador apagando o arquivo `server/data/gestao.db` (isso apaga TODOS os projetos também — só faça isso se realmente não tiver outro jeito).
 
 ## Conceito do projeto e visualizador 3D
@@ -99,7 +99,7 @@ O servidor confere os prazos sozinho (ao iniciar e a cada 30 minutos) e manda um
 
 **Configurar (uma vez, como administrador):** botão **Avisos por e-mail** no topo →
 1. Preencha o **servidor SMTP** da empresa (peça ao TI: servidor, porta, usuário e senha — ex: Office 365 `smtp.office365.com`, porta 587; Gmail `smtp.gmail.com`, porta 587 com "senha de app"). Em "Remetente" coloque o endereço de onde os avisos saem.
-2. Opcional: em "Endereço do sistema" coloque o endereço que as pessoas usam (ex: `http://192.168.0.15:3000`) — ele vai como botão no e-mail.
+2. Opcional: em "Endereço do sistema" coloque o endereço que as pessoas usam (ex: `http://192.168.0.15:2523`) — ele vai como botão no e-mail.
 3. Clique em **Salvar configuração**, depois em **Enviar teste** (para o seu e-mail) e, quando chegar, marque **Enviar avisos automáticos de prazo** e salve de novo.
 
 **Quem recebe:** o e-mail do responsável. Você pode digitar o e-mail direto no campo **E-mail** do tópico ou da etapa, ou cadastrar o e-mail do usuário (botão **Usuários**) — nesse caso, se o nome do responsável for igual ao nome do usuário (ex: responsável "maria" e usuário "Maria"), o aviso vai para ele automaticamente. A etapa sem e-mail usa o do tópico dela. Quem criou o projeto recebe cópia (dá para desligar). Se ninguém tiver e-mail, o botão **Verificar prazos agora** avisa quantos ficaram sem destinatário.

@@ -7,6 +7,7 @@ const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const db = require('./db');
+const mailer = require('./mailer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -34,7 +35,7 @@ function uid() {
 }
 
 function publicUser(u) {
-  return { id: u.id, username: u.username, role: u.role };
+  return { id: u.id, username: u.username, role: u.role, email: u.email || '' };
 }
 
 function countUsers() {
@@ -99,20 +100,63 @@ app.post('/api/logout', (req, res) => {
 // ---------- usuários (somente admin) ----------
 
 app.get('/api/users', requireLogin, requireAdmin, (req, res) => {
-  const users = db.prepare('SELECT id, username, role FROM users ORDER BY username').all();
+  const users = db.prepare('SELECT id, username, role, email FROM users ORDER BY username').all();
   res.json({ users });
 });
 
 app.post('/api/users', requireLogin, requireAdmin, (req, res) => {
   const { username, password, role } = req.body || {};
+  const email = ((req.body && req.body.email) || '').trim();
   if (!username || !username.trim() || !password) return res.status(400).json({ error: 'missing_fields' });
+  if (email && !mailer.isValidEmail(email)) return res.status(400).json({ error: 'invalid_email' });
   if (findUserByUsername(username.trim())) return res.status(409).json({ error: 'username_taken' });
   const id = uid();
   const passwordHash = bcrypt.hashSync(password, 10);
   const finalRole = role === 'admin' ? 'admin' : 'user';
-  db.prepare('INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)')
-    .run(id, username.trim(), passwordHash, finalRole, new Date().toISOString());
-  res.json({ user: { id, username: username.trim(), role: finalRole } });
+  db.prepare('INSERT INTO users (id, username, password_hash, role, created_at, email) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(id, username.trim(), passwordHash, finalRole, new Date().toISOString(), email);
+  res.json({ user: { id, username: username.trim(), role: finalRole, email } });
+});
+
+app.put('/api/users/:id', requireLogin, requireAdmin, (req, res) => {
+  const target = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
+  if (!target) return res.status(404).json({ error: 'not_found' });
+  const email = ((req.body && req.body.email) || '').trim();
+  if (email && !mailer.isValidEmail(email)) return res.status(400).json({ error: 'invalid_email' });
+  db.prepare('UPDATE users SET email = ? WHERE id = ?').run(email, target.id);
+  res.json({ ok: true, email });
+});
+
+// ---------- avisos por e-mail (somente admin) ----------
+
+app.get('/api/settings/email', requireLogin, requireAdmin, (req, res) => {
+  res.json({ settings: mailer.publicSettings(mailer.getSettings()) });
+});
+
+app.put('/api/settings/email', requireLogin, requireAdmin, (req, res) => {
+  const saved = mailer.saveSettings(req.body || {});
+  res.json({ settings: mailer.publicSettings(saved) });
+});
+
+app.post('/api/settings/email/test', requireLogin, requireAdmin, async (req, res) => {
+  const to = ((req.body && req.body.to) || '').trim();
+  if (!mailer.isValidEmail(to)) return res.status(400).json({ error: 'invalid_email' });
+  const s = mailer.getSettings();
+  if (!mailer.configured(s)) return res.status(400).json({ error: 'not_configured' });
+  try {
+    await mailer.sendMail(s, {
+      to,
+      subject: 'Teste — Gestão de Projetos AUTOMAÇÃO',
+      text: 'Se você recebeu esta mensagem, o envio de avisos de prazo está funcionando.',
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(502).json({ error: 'send_failed', detail: e.message });
+  }
+});
+
+app.post('/api/settings/email/run', requireLogin, requireAdmin, async (req, res) => {
+  res.json({ result: await mailer.runCheck() });
 });
 
 app.delete('/api/users/:id', requireLogin, requireAdmin, (req, res) => {
@@ -282,6 +326,8 @@ app.delete('/api/projects/:id/files/:fileId', requireLogin, (req, res) => {
 
 // ---------- arquivos estáticos (a própria página do app) ----------
 app.use(express.static(STATIC_ROOT));
+
+mailer.start();
 
 app.listen(PORT, () => {
   console.log(`Gestão de Projetos - AUTOMAÇÃO rodando em http://localhost:${PORT}`);

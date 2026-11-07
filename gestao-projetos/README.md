@@ -91,6 +91,19 @@ Cada **etapa** também aceita arquivos (vários, se quiser guardar revisões). C
 
 As etapas do projeto são organizadas em **tópicos** (ex: Projeto mecânico, Elétrica e comando, Montagem). Cada tópico tem responsável, data de início e **prazo**, e mostra sozinho: *No prazo*, *Vence em N dias*, *Atrasado N dias* ou *Concluído*, com o avanço (etapas concluídas / total). Acima da lista há um **cronograma** com a barra de cada tópico e a linha de "hoje", e no topo do projeto os indicadores (avanço geral, tópicos concluídos, atrasos e próximo prazo). Etapas com data planejada depois do prazo do tópico recebem um aviso.
 
+## Avisos automáticos de prazo por e-mail
+
+O servidor confere os prazos sozinho (ao iniciar e a cada 30 minutos) e manda um e-mail ao responsável quando faltam **2 dias** (configurável) para o prazo de um **tópico** ou de uma **etapa**. Cada aviso é enviado **uma única vez** (se você mudar a data do prazo, ele volta a valer para a nova data). Tópicos concluídos e etapas já feitas não geram aviso.
+
+**Configurar (uma vez, como administrador):** botão **Avisos por e-mail** no topo →
+1. Preencha o **servidor SMTP** da empresa (peça ao TI: servidor, porta, usuário e senha — ex: Office 365 `smtp.office365.com`, porta 587; Gmail `smtp.gmail.com`, porta 587 com "senha de app"). Em "Remetente" coloque o endereço de onde os avisos saem.
+2. Opcional: em "Endereço do sistema" coloque o endereço que as pessoas usam (ex: `http://192.168.0.15:3000`) — ele vai como botão no e-mail.
+3. Clique em **Salvar configuração**, depois em **Enviar teste** (para o seu e-mail) e, quando chegar, marque **Enviar avisos automáticos de prazo** e salve de novo.
+
+**Quem recebe:** o e-mail do responsável. Você pode digitar o e-mail direto no campo **E-mail** do tópico ou da etapa, ou cadastrar o e-mail do usuário (botão **Usuários**) — nesse caso, se o nome do responsável for igual ao nome do usuário (ex: responsável "maria" e usuário "Maria"), o aviso vai para ele automaticamente. A etapa sem e-mail usa o do tópico dela. Quem criou o projeto recebe cópia (dá para desligar). Se ninguém tiver e-mail, o botão **Verificar prazos agora** avisa quantos ficaram sem destinatário.
+
+> O servidor precisa estar ligado e com acesso ao servidor de e-mail da empresa. A senha do SMTP fica guardada no banco (`server/data`) — use uma conta só para esse fim.
+
 ## Login e usuários
 
 No primeiro uso, o app pede para criar o **usuário administrador**. A partir daí:
@@ -145,6 +158,7 @@ gestao-projetos/
 ├── server/                        # o servidor que fica sempre ligado
 │   ├── start.js                  # ponto de entrada: instala dependências (se faltar) e inicia
 │   ├── server.js                 # a API (login, usuários, projetos) e quem serve a página
+│   ├── mailer.js                 # avisos automáticos de prazo por e-mail (SMTP)
 │   ├── db.js                     # conexão com o banco de dados (SQLite)
 │   ├── package.json              # lista de dependências (Express, SQLite, etc.)
 │   ├── iniciar-servidor.bat      # duplo clique para iniciar no Windows (sem VSCode)

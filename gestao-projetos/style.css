@@ -1014,3 +1014,16 @@ table.data-table input:focus, table.data-table select:focus {
   .sidebar { width: 100%; }
   .project-list { max-height: none; }
 }
+
+/* ---------- avisos por e-mail / usuários ---------- */
+.email-panel { width: 340px; max-height: 80vh; overflow-y: auto; }
+.email-panel .field { gap: 3px; }
+.email-panel input[type="text"], .email-panel input[type="number"], .email-panel input[type="password"], .email-panel input[type="email"] {
+  padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: 5px; font-size: 13px; width: 100%;
+  background: var(--panel); color: var(--text); font-family: inherit;
+}
+.check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.mail-row { display: flex; align-items: flex-end; gap: 10px; }
+.mail-row .field { flex: 0 0 90px; }
+.user-email { display: block; font-weight: 400; font-size: 11px; color: var(--text-muted); }
+.users-panel input[type="email"] { padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: 5px; width: 100%; background: var(--panel); color: var(--text); }

@@ -37,6 +37,22 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_files_project ON files(project_id);
 `);
 
+// Migrações simples (bancos criados por versões anteriores)
+const userCols = db.prepare("PRAGMA table_info(users)").all().map((c) => c.name);
+if (userCols.indexOf('email') < 0) db.exec("ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT ''");
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+  -- uma linha por aviso já enviado (evita mandar o mesmo e-mail duas vezes)
+  CREATE TABLE IF NOT EXISTS sent_notifications (
+    key TEXT PRIMARY KEY,
+    sent_at TEXT NOT NULL
+  );
+`);
+
 // Os arquivos enviados (desenhos 3D, PDFs...) ficam nesta pasta, um por id.
 const FILES_DIR = path.join(DATA_DIR, 'files');
 fs.mkdirSync(FILES_DIR, { recursive: true });

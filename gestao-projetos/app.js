@@ -221,6 +221,7 @@ function userErrorMessage(code) {
     case 'cannot_delete_self': return 'Você não pode remover o próprio usuário logado.';
     case 'last_admin': return 'Precisa existir pelo menos um administrador.';
     case 'username_taken': return 'Já existe um usuário com esse nome.';
+    case 'invalid_email': return 'E-mail inválido.';
     case 'missing_fields': return 'Preencha usuário e senha.';
     case 'invalid_credentials': return 'Usuário ou senha incorretos.';
     default: return 'Não foi possível completar a operação.';
@@ -264,6 +265,7 @@ function updateSessionUI() {
   if (!currentUser) return;
   label.innerHTML = `<strong>${escapeHtml(currentUser.username)}</strong> <span class="badge ${currentUser.role === 'admin' ? 'status-em-andamento' : 'status-planejamento'}">${roleLabel(currentUser.role)}</span>`;
   usersToggle.hidden = currentUser.role !== 'admin';
+  document.getElementById('btn-email-toggle').hidden = currentUser.role !== 'admin';
 }
 
 async function renderUsersPanel() {
@@ -276,11 +278,24 @@ async function renderUsersPanel() {
     const data = await res.json();
     list.innerHTML = data.users.map(u => `
       <div class="user-row">
-        <span class="user-name">${escapeHtml(u.username)}</span>
+        <span class="user-name">${escapeHtml(u.username)}<small class="user-email">${u.email ? escapeHtml(u.email) : 'sem e-mail'}</small></span>
+        <button class="icon-btn user-email-edit" data-user="${u.id}" data-email="${escapeAttr(u.email || '')}" title="Alterar e-mail">✎</button>
         <span class="badge ${u.role === 'admin' ? 'status-em-andamento' : 'status-planejamento'}">${roleLabel(u.role)}</span>
         <button class="icon-btn user-delete" data-user="${u.id}" title="Remover usuário">✕</button>
       </div>
     `).join('');
+    list.querySelectorAll('.user-email-edit').forEach(btn => btn.addEventListener('click', async () => {
+      const email = prompt('E-mail deste usuário (deixe vazio para remover):', btn.dataset.email);
+      if (email === null) return;
+      try {
+        const r = await apiFetch(`/users/${btn.dataset.user}`, { method: 'PUT', body: JSON.stringify({ email }) });
+        const b = await r.json();
+        if (!r.ok) throw new Error(userErrorMessage(b.error));
+        renderUsersPanel();
+      } catch (e) {
+        statusEl.textContent = e.message;
+      }
+    }));
     list.querySelectorAll('.user-delete').forEach(btn => btn.addEventListener('click', async () => {
       if (!confirm('Remover este usuário? Os projetos dele continuam existindo no servidor.')) return;
       try {
@@ -341,8 +356,11 @@ function wireAuthEvents() {
 
   document.getElementById('btn-logout').addEventListener('click', logout);
 
+  wireEmailPanel();
+
   document.getElementById('btn-users-toggle').addEventListener('click', () => {
     const panel = document.getElementById('users-panel');
+    document.getElementById('email-panel').hidden = true;
     panel.hidden = !panel.hidden;
     if (!panel.hidden) renderUsersPanel();
   });
@@ -351,21 +369,105 @@ function wireAuthEvents() {
     const username = document.getElementById('new-user-username').value;
     const password = document.getElementById('new-user-password').value;
     const role = document.getElementById('new-user-role').value;
+    const email = document.getElementById('new-user-email').value;
     const statusEl = document.getElementById('users-status-line');
     try {
       const res = await apiFetch('/users', {
         method: 'POST',
-        body: JSON.stringify({ username, password, role }),
+        body: JSON.stringify({ username, password, role, email }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(userErrorMessage(body.error));
       document.getElementById('new-user-username').value = '';
       document.getElementById('new-user-password').value = '';
+      document.getElementById('new-user-email').value = '';
       statusEl.textContent = 'Usuário criado.';
       renderUsersPanel();
     } catch (e) {
       statusEl.textContent = e.message;
     }
+  });
+}
+
+// ---------- avisos de prazo por e-mail (painel do administrador) ----------
+
+function wireEmailPanel() {
+  const $ = (id) => document.getElementById(id);
+  const statusEl = $('mail-status-line');
+  const say = (msg) => { statusEl.textContent = msg; };
+
+  async function load() {
+    try {
+      const res = await apiFetch('/settings/email');
+      if (!res.ok) throw new Error('Não foi possível carregar a configuração.');
+      const s = (await res.json()).settings;
+      $('mail-enabled').checked = s.enabled;
+      $('mail-days').value = s.daysBefore;
+      $('mail-host').value = s.host;
+      $('mail-port').value = s.port;
+      $('mail-secure').checked = s.secure;
+      $('mail-user').value = s.user;
+      $('mail-password').value = '';
+      $('mail-password').placeholder = s.hasPassword ? '(mantida — digite para trocar)' : '';
+      $('mail-from').value = s.from;
+      $('mail-appurl').value = s.appUrl;
+      $('mail-ccowner').checked = s.ccOwner;
+      say('');
+    } catch (e) { say(e.message); }
+  }
+
+  async function save() {
+    const res = await apiFetch('/settings/email', {
+      method: 'PUT',
+      body: JSON.stringify({
+        enabled: $('mail-enabled').checked,
+        daysBefore: Number($('mail-days').value),
+        host: $('mail-host').value,
+        port: Number($('mail-port').value),
+        secure: $('mail-secure').checked,
+        user: $('mail-user').value,
+        password: $('mail-password').value,
+        from: $('mail-from').value,
+        appUrl: $('mail-appurl').value,
+        ccOwner: $('mail-ccowner').checked,
+      }),
+    });
+    if (!res.ok) throw new Error('O servidor recusou salvar a configuração.');
+    $('mail-password').value = '';
+  }
+
+  $('btn-email-toggle').addEventListener('click', () => {
+    const panel = $('email-panel');
+    $('users-panel').hidden = true;
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden) load();
+  });
+  $('btn-mail-save').addEventListener('click', async () => {
+    try { await save(); say('Configuração salva.'); await load(); say('Configuração salva.'); } catch (e) { say(e.message); }
+  });
+  $('btn-mail-test').addEventListener('click', async () => {
+    try {
+      await save();
+      say('Enviando teste...');
+      const res = await apiFetch('/settings/email/test', { method: 'POST', body: JSON.stringify({ to: $('mail-test-to').value }) });
+      const b = await res.json();
+      if (!res.ok) {
+        if (b.error === 'invalid_email') throw new Error('Digite um e-mail válido para o teste.');
+        if (b.error === 'not_configured') throw new Error('Preencha ao menos o servidor e o remetente.');
+        throw new Error('Falhou: ' + (b.detail || 'erro ao enviar'));
+      }
+      say('Teste enviado! Confira a caixa de entrada (e o spam).');
+    } catch (e) { say(e.message); }
+  });
+  $('btn-mail-run').addEventListener('click', async () => {
+    try {
+      await save();
+      say('Verificando...');
+      const res = await apiFetch('/settings/email/run', { method: 'POST', body: '{}' });
+      const r = (await res.json()).result;
+      if (r.disabled) return say('Ative "Enviar avisos automáticos" e preencha servidor e remetente.');
+      say(`Enviados: ${r.sent}` + (r.skippedNoRecipient ? ` · sem e-mail do responsável: ${r.skippedNoRecipient}` : '') + (r.failed ? ` · falhas: ${r.failed} (${r.errors[0]})` : ''));
+    } catch (e) { say(e.message); }
   });
 }
 
@@ -1135,6 +1237,9 @@ function taskCardHtml(project, task) {
         <label class="inline-label">Responsável
           <input type="text" class="task-responsible" data-task="${task.id}" value="${escapeAttr(task.responsible)}" placeholder="Nome">
         </label>
+        <label class="inline-label">E-mail
+          <input type="email" class="task-email" data-task="${task.id}" value="${escapeAttr(task.responsibleEmail || '')}" placeholder="para o aviso de prazo">
+        </label>
         ${(project.topics || []).length ? `<label class="inline-label">Tópico
           <select class="task-topic" data-task="${task.id}">${topicOptionsHtml(project, task.topicId)}</select>
         </label>` : ''}
@@ -1186,6 +1291,7 @@ function topicSectionHtml(project, topic) {
     </div>
     <div class="topic-meta">
       <label class="inline-label">Responsável <input type="text" class="topic-responsible" data-topic="${escapeAttr(topicId)}" value="${escapeAttr(topic.responsible)}" placeholder="Nome"></label>
+      <label class="inline-label">E-mail <input type="email" class="topic-email" data-topic="${escapeAttr(topicId)}" value="${escapeAttr(topic.responsibleEmail || '')}" placeholder="para o aviso de prazo"></label>
       <label class="inline-label">Início <input type="date" class="topic-start" data-topic="${escapeAttr(topicId)}" value="${escapeAttr(topic.startDate)}"></label>
       <label class="inline-label">Prazo <input type="date" class="topic-deadline" data-topic="${escapeAttr(topicId)}" value="${escapeAttr(topic.deadline)}"></label>
     </div>` : `
@@ -1228,6 +1334,10 @@ function renderChecklist(project) {
   el.querySelectorAll('.topic-name').forEach(inp => inp.addEventListener('change', () => { renderTopicTimeline(project); renderKpis(project); }));
   el.querySelectorAll('.topic-responsible').forEach(inp => inp.addEventListener('input', () => {
     topicById(inp.dataset.topic).responsible = inp.value;
+    saveState();
+  }));
+  el.querySelectorAll('.topic-email').forEach(inp => inp.addEventListener('input', () => {
+    topicById(inp.dataset.topic).responsibleEmail = inp.value.trim();
     saveState();
   }));
   el.querySelectorAll('.topic-start').forEach(inp => inp.addEventListener('change', () => {
@@ -1291,6 +1401,10 @@ function renderChecklist(project) {
     task.responsible = inp.value;
     saveState();
     renderMethodologyTools(project);
+  }));
+  el.querySelectorAll('.task-email').forEach(inp => inp.addEventListener('input', () => {
+    taskById(inp.dataset.task).responsibleEmail = inp.value.trim();
+    saveState();
   }));
   const dateField = (selector, key) => el.querySelectorAll(selector).forEach(inp => inp.addEventListener('change', () => {
     const task = project.tasks.find(t => t.id === inp.dataset.task);

@@ -77,6 +77,10 @@
             <input id="new-user-password" type="password" autocomplete="new-password">
           </div>
           <div class="field">
+            <label for="new-user-email">E-mail (para os avisos de prazo)</label>
+            <input id="new-user-email" type="email" autocomplete="off" placeholder="opcional">
+          </div>
+          <div class="field">
             <label for="new-user-role">Papel</label>
             <select id="new-user-role">
               <option value="user">Usuário comum</option>
@@ -86,6 +90,36 @@
           <button id="btn-create-user" class="btn btn-primary">Criar usuário</button>
           <p class="drive-status" id="users-status-line"></p>
         </div>
+      </div>
+    </div>
+    <div class="drive-wrap">
+      <button id="btn-email-toggle" class="btn" hidden title="Avisos automáticos de prazo por e-mail">Avisos por e-mail</button>
+      <div id="email-panel" class="drive-panel email-panel" hidden>
+        <label class="check-row"><input type="checkbox" id="mail-enabled"> <strong>Enviar avisos automáticos de prazo</strong></label>
+        <div class="field">
+          <label for="mail-days">Avisar quantos dias antes do prazo</label>
+          <input id="mail-days" type="number" min="0" max="30" value="2">
+        </div>
+        <p class="drive-status" style="margin:4px 0 0;">Servidor de e-mail (SMTP) da empresa</p>
+        <div class="field"><label for="mail-host">Servidor</label><input id="mail-host" type="text" placeholder="ex: smtp.empresa.com.br"></div>
+        <div class="mail-row">
+          <div class="field"><label for="mail-port">Porta</label><input id="mail-port" type="number" value="587"></div>
+          <label class="check-row"><input type="checkbox" id="mail-secure"> SSL direto (porta 465)</label>
+        </div>
+        <div class="field"><label for="mail-user">Usuário</label><input id="mail-user" type="text" autocomplete="off"></div>
+        <div class="field"><label for="mail-password">Senha</label><input id="mail-password" type="password" autocomplete="new-password"></div>
+        <div class="field"><label for="mail-from">Remetente</label><input id="mail-from" type="text" placeholder="Gestão de Projetos &lt;projetos@empresa.com.br&gt;"></div>
+        <div class="field"><label for="mail-appurl">Endereço do sistema (vai no e-mail)</label><input id="mail-appurl" type="text" placeholder="http://192.168.0.15:3000"></div>
+        <label class="check-row"><input type="checkbox" id="mail-ccowner"> Enviar cópia para quem criou o projeto</label>
+        <button id="btn-mail-save" class="btn btn-primary">Salvar configuração</button>
+        <hr>
+        <div class="mail-row">
+          <input id="mail-test-to" type="email" placeholder="seu e-mail para testar" style="flex:1">
+          <button id="btn-mail-test" class="btn">Enviar teste</button>
+        </div>
+        <button id="btn-mail-run" class="btn" title="Confere agora os prazos e envia o que estiver na janela de aviso">Verificar prazos agora</button>
+        <p class="drive-status" id="mail-status-line"></p>
+        <p class="drive-status">O sistema confere os prazos sozinho a cada 30 minutos. Cada aviso é enviado uma única vez.</p>
       </div>
     </div>
     <div class="session-info">

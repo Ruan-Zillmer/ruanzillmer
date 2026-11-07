@@ -331,5 +331,15 @@ mailer.start();
 
 app.listen(PORT, () => {
   console.log(`Gestão de Projetos - AUTOMAÇÃO rodando em http://localhost:${PORT}`);
+  // endereços para os OUTROS computadores da rede usarem
+  const nets = require('os').networkInterfaces();
+  const addrs = [];
+  Object.keys(nets).forEach((name) => (nets[name] || []).forEach((n) => {
+    if (n.family === 'IPv4' && !n.internal) addrs.push(n.address);
+  }));
+  if (addrs.length) {
+    console.log('Nos outros computadores da rede, abra no navegador:');
+    addrs.forEach((a) => console.log(`   http://${a}:${PORT}`));
+  }
   console.log('Deixe esta janela aberta (ou rode como serviço) para o app continuar disponível.');
 });

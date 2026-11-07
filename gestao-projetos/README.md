@@ -47,6 +47,8 @@ Uma janela/terminal vai ficar aberta mostrando `Gestão de Projetos - AUTOMAÇÃ
 
 ### 4. Descobrir o endereço na rede
 
+Ao iniciar, a janela do servidor já mostra o endereço pronto, na linha **"Nos outros computadores da rede, abra no navegador: http://192.168.x.x:3000"**. É só usar esse.
+
 No próprio computador servidor, acesse `http://localhost:3000` para testar.
 
 Para os **outros computadores** acessarem, eles precisam do IP desse computador na rede local:

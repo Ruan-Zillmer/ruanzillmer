@@ -10,7 +10,7 @@ Só precisa ser feito uma vez, nesse computador.
 
 ### 1. Instalar o Node.js
 
-**Se você tem permissão de administrador** nesse computador: baixe e instale a versão **LTS** em [nodejs.org](https://nodejs.org/) (é só clicar em "próximo" até terminar, igual instalar qualquer programa).
+**Se você tem permissão de administrador** nesse computador: baixe e instale a versão **LTS** (22.13 ou mais nova) em [nodejs.org](https://nodejs.org/) (é só clicar em "próximo" até terminar, igual instalar qualquer programa).
 
 **Se você NÃO tem permissão de administrador** (comum em computador de empresa): dá pra usar o Node.js sem instalar nada.
 

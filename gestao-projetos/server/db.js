@@ -2,13 +2,14 @@
 
 const fs = require('fs');
 const path = require('path');
-const Database = require('better-sqlite3');
+// SQLite embutido no próprio Node.js (não precisa instalar nem compilar nada)
+const { DatabaseSync } = require('node:sqlite');
 
 const DATA_DIR = path.join(__dirname, 'data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const db = new Database(path.join(DATA_DIR, 'gestao.db'));
-db.pragma('journal_mode = WAL');
+const db = new DatabaseSync(path.join(DATA_DIR, 'gestao.db'));
+db.exec('PRAGMA journal_mode = WAL');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (

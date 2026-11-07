@@ -26,7 +26,7 @@ echo Node.js nao encontrado. Baixando a versao portatil automaticamente
 echo (nao precisa de administrador, leva alguns minutos, precisa de internet)...
 echo.
 if not exist "%~dp0node-portable" mkdir "%~dp0node-portable"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $z=Join-Path $env:TEMP 'node-portable.zip'; Invoke-WebRequest -UseBasicParsing 'https://nodejs.org/dist/v22.12.0/node-v22.12.0-win-x64.zip' -OutFile $z; Expand-Archive -Force -Path $z -DestinationPath '%~dp0node-portable'; Remove-Item $z"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $z=Join-Path $env:TEMP 'node-portable.zip'; Invoke-WebRequest -UseBasicParsing 'https://nodejs.org/dist/v24.22.2/node-v24.22.2-win-x64.zip' -OutFile $z; Expand-Archive -Force -Path $z -DestinationPath '%~dp0node-portable'; Remove-Item $z"
 if errorlevel 1 echo Nao foi possivel baixar automaticamente.
 goto search
 

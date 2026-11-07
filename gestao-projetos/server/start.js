@@ -8,6 +8,14 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
+// O banco de dados usa o SQLite embutido do Node.js, que exige a versão 22.13 ou mais nova.
+const [major, minor] = process.versions.node.split('.').map(Number);
+if (major < 22 || (major === 22 && minor < 13)) {
+  console.error('Este sistema precisa do Node.js 22.13 ou mais novo (você está com ' + process.versions.node + ').');
+  console.error('Baixe a versão LTS em https://nodejs.org/ ou apague a pasta server\\node-portable e rode o iniciar-servidor.bat para baixar uma versão adequada.');
+  process.exit(1);
+}
+
 const nodeModulesPath = path.join(__dirname, 'node_modules');
 const pkg = require('./package.json');
 const missingDependency = Object.keys(pkg.dependencies || {})

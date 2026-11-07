@@ -675,7 +675,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == '/api/login' and method == 'POST':
             if too_many_fails(ip):
                 return self.err(429, 'too_many_attempts')
-            u = q('SELECT * FROM users WHERE username = ?', ((body.get('username') or '').strip(),), one=True)
+            u = q('SELECT * FROM users WHERE lower(username) = lower(?)', ((body.get('username') or '').strip(),), one=True)
             if not u or not verify_password(body.get('password') or '', u['password_hash']):
                 register_fail(ip)
                 return self.err(401, 'invalid_credentials')
@@ -709,7 +709,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.err(400, 'missing_fields')
             if email and not valid_email(email):
                 return self.err(400, 'invalid_email')
-            if q('SELECT 1 FROM users WHERE username = ?', (username,), one=True):
+            if q('SELECT 1 FROM users WHERE lower(username) = lower(?)', (username,), one=True):
                 return self.err(409, 'username_taken')
             role = 'admin' if body.get('role') == 'admin' else 'user'
             new_id = uid()

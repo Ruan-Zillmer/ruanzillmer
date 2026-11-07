@@ -61,14 +61,23 @@ As etapas do projeto são organizadas em **tópicos** (ex: Projeto mecânico, El
 
 O servidor confere os prazos sozinho (ao iniciar e a cada 30 minutos) e manda um e-mail ao responsável quando faltam **2 dias** (configurável) para o prazo de um **tópico** ou de uma **etapa**. Cada aviso é enviado **uma única vez** (se você mudar a data do prazo, ele volta a valer para a nova data). Tópicos concluídos e etapas já feitas não geram aviso.
 
-**Configurar (uma vez, como administrador):** botão **Avisos por e-mail** no topo →
-1. Preencha o **servidor SMTP** da empresa (peça ao TI: servidor, porta, usuário e senha — ex: Office 365 `smtp.office365.com`, porta 587; Gmail `smtp.gmail.com`, porta 587 com "senha de app"). Em "Remetente" coloque o endereço de onde os avisos saem.
-2. Opcional: em "Endereço do sistema" coloque o endereço que as pessoas usam (ex: `http://192.168.0.15:2523`) — ele vai como botão no e-mail.
-3. Clique em **Salvar configuração**, depois em **Enviar teste** (para o seu e-mail) e, quando chegar, marque **Enviar avisos automáticos de prazo** e salve de novo.
+**Configurar (uma vez, como administrador):** botão **Avisos por e-mail** no topo. Há duas formas de enviar:
+
+**A) Pela sua conta Google (Gmail)** — os e-mails saem direto do seu Gmail, sem passar pelo servidor de e-mail da empresa. O sistema pede a permissão ao Google (a tela "Permitir que o app envie e-mails em seu nome").
+1. Crie as credenciais no Google (uma vez só; o painel mostra o passo a passo em "Como obter o ID e a chave"): em [console.cloud.google.com](https://console.cloud.google.com) crie um projeto, ative a **Gmail API**, configure a **Tela de permissão OAuth** (tipo Externo, adicione seu Gmail como usuário de teste e clique em **Publicar app**, senão a permissão expira em 7 dias) e crie um **ID do cliente OAuth** do tipo "Aplicativo da Web", cadastrando como URI de redirecionamento o endereço que aparece no painel (`http://localhost:2523/api/google/callback`).
+2. Cole o **ID do cliente** e a **Chave secreta** no painel e salve.
+3. **No próprio computador do servidor**, abrindo `http://localhost:2523`, clique em **Conectar com Google**, escolha sua conta e permita. (Se aparecer "app não verificado", clique em *Avançado → Acessar*: é o seu próprio app.)
+4. Digite o seu e-mail e clique em **Enviar teste**. Quando chegar, marque **Enviar avisos automáticos de prazo** e salve.
+
+O servidor precisa de acesso à internet para falar com o Google. O sistema guarda só uma permissão para **enviar** e-mails (não lê a sua caixa de entrada) e você pode revogá-la quando quiser em *myaccount.google.com → Segurança → Acesso de terceiros*, ou clicando em **Desconectar**. Se a permissão for revogada, o painel avisa para reconectar.
+
+**B) Por um servidor SMTP** (alternativa mais simples, sem criar credenciais no Google): escolha "Servidor de e-mail (SMTP)" e preencha servidor, porta, usuário, senha e remetente. Para o Gmail, use `smtp.gmail.com`, porta 587 e uma **senha de app** (Conta Google → Segurança → Verificação em duas etapas → Senhas de app) — também não passa pela empresa. Marque "Aceitar certificado não confiável" só se for um servidor interno com erro de certificado.
+
+Em ambos, o campo **Endereço do sistema** (ex: `http://192.168.3.104:2523`) vira um botão "Abrir o sistema" dentro do e-mail.
 
 **Quem recebe:** o e-mail do responsável. Você pode digitar o e-mail direto no campo **E-mail** do tópico ou da etapa, ou cadastrar o e-mail do usuário (botão **Usuários**) — nesse caso, se o nome do responsável for igual ao nome do usuário (ex: responsável "maria" e usuário "Maria"), o aviso vai para ele automaticamente. A etapa sem e-mail usa o do tópico dela. Quem criou o projeto recebe cópia (dá para desligar). Se ninguém tiver e-mail, o botão **Verificar prazos agora** avisa quantos ficaram sem destinatário.
 
-> O servidor precisa estar ligado e com acesso ao servidor de e-mail da empresa. A senha do SMTP fica guardada no banco (`dados`) — use uma conta só para esse fim.
+> O servidor precisa estar ligado e com acesso à internet. As chaves e a permissão do Google (ou a senha do SMTP) ficam guardadas no banco (`dados`) — proteja essa pasta.
 
 ## Login e usuários
 

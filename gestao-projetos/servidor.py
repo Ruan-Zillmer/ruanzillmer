@@ -10,6 +10,7 @@ Ao iniciar, mostra o endereco (IP) para abrir no navegador e o salva em endereco
 Opcoes:  python servidor.py --porta 2523   |   --sem-navegador
 """
 
+import base64
 import hashlib
 import hmac
 import html
@@ -29,7 +30,11 @@ import traceback
 import webbrowser
 from datetime import date, datetime, timedelta
 from email.message import EmailMessage
+from email.utils import formataddr
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import urllib.error
+import urllib.parse
+import urllib.request
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -154,8 +159,17 @@ def register_fail(ip):
 
 # ============================================================ avisos por e-mail
 
-MAIL_DEFAULTS = {'enabled': False, 'host': '', 'port': 587, 'secure': False, 'user': '', 'password': '',
-                 'from': '', 'daysBefore': 2, 'ccOwner': True, 'appUrl': '', 'insecureTls': False}
+GOOGLE_AUTH_URL = os.environ.get('GESTAO_GOOGLE_AUTH_URL', 'https://accounts.google.com/o/oauth2/v2/auth')
+GOOGLE_TOKEN_URL = os.environ.get('GESTAO_GOOGLE_TOKEN_URL', 'https://oauth2.googleapis.com/token')
+GOOGLE_USERINFO_URL = os.environ.get('GESTAO_GOOGLE_USERINFO_URL', 'https://www.googleapis.com/oauth2/v2/userinfo')
+GMAIL_SEND_URL = os.environ.get('GESTAO_GMAIL_SEND_URL', 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send')
+GOOGLE_SCOPES = 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email'
+RUNTIME = {'port': DEFAULT_PORT}
+
+MAIL_DEFAULTS = {'enabled': False, 'provider': 'google',
+                 'host': '', 'port': 587, 'secure': False, 'user': '', 'password': '', 'from': '', 'insecureTls': False,
+                 'googleClientId': '', 'googleClientSecret': '', 'googleRefreshToken': '', 'googleEmail': '',
+                 'daysBefore': 2, 'ccOwner': True, 'appUrl': ''}
 EMAIL_RE = re.compile(r'^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$')
 _mail_lock = threading.Lock()
 PUBLIC_URL = ''  # preenchido ao iniciar (endereco de rede), usado se "Endereco do sistema" estiver vazio
@@ -187,6 +201,16 @@ def save_mail_settings(patch):
         s['password'] = patch['password']
     if patch.get('clearPassword'):
         s['password'] = ''
+    if patch.get('provider') in ('google', 'smtp'):
+        s['provider'] = patch['provider']
+    if isinstance(patch.get('googleClientId'), str):
+        new_id = patch['googleClientId'].strip()
+        if new_id != s['googleClientId']:  # outro app do Google = precisa reconectar
+            s['googleRefreshToken'] = ''
+            s['googleEmail'] = ''
+        s['googleClientId'] = new_id
+    if isinstance(patch.get('googleClientSecret'), str) and patch['googleClientSecret'].strip():
+        s['googleClientSecret'] = patch['googleClientSecret'].strip()
     if patch.get('port') is not None:
         try:
             s['port'] = max(1, min(65535, int(patch['port'])))
@@ -206,16 +230,104 @@ def save_mail_settings(patch):
 
 
 def public_mail_settings(s):
-    out = {k: v for k, v in s.items() if k != 'password'}
+    secret = ('password', 'googleClientSecret', 'googleRefreshToken')
+    out = {k: v for k, v in s.items() if k not in secret}
     out['hasPassword'] = bool(s.get('password'))
+    out['hasGoogleSecret'] = bool(s.get('googleClientSecret'))
+    out['googleConnected'] = bool(s.get('googleRefreshToken'))
+    out['redirectUri'] = google_redirect_uri()
     return out
 
 
+def google_redirect_uri():
+    return 'http://localhost:%d/api/google/callback' % RUNTIME['port']
+
+
+def update_mail_settings(changes):
+    s = get_mail_settings()
+    s.update(changes)
+    q("INSERT INTO settings (key, value) VALUES ('email', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      (json.dumps(s),), commit=True)
+    return s
+
+
 def mail_configured(s):
+    if s['provider'] == 'google':
+        return bool(s['googleClientId'] and s['googleClientSecret'] and s['googleRefreshToken'])
     return bool(s['host'] and s['from'])
 
 
+# ---------- envio pela conta Google (OAuth2 + Gmail API) ----------
+
+_google_token = {'token': '', 'exp': 0.0}
+_oauth_states = {}
+_oauth_lock = threading.Lock()
+
+
+def http_form_post(url, data):
+    req = urllib.request.Request(url, data=urllib.parse.urlencode(data).encode('utf-8'),
+                                 headers={'Content-Type': 'application/x-www-form-urlencoded'})
+    return _http_json(req)
+
+
+def _http_json(req):
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read().decode('utf-8') or '{}'
+            return json.loads(raw)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode('utf-8', 'replace')
+        try:
+            j = json.loads(body)
+            err = j.get('error')
+            if isinstance(err, dict):
+                err = err.get('message') or err.get('status')
+            detail = j.get('error_description') or ''
+            raise RuntimeError(('%s %s' % (err or 'erro', detail)).strip())
+        except (ValueError, AttributeError):
+            raise RuntimeError('Google respondeu %s: %s' % (e.code, body[:200]))
+    except urllib.error.URLError as e:
+        raise RuntimeError('Sem conexao com o Google (%s). O servidor precisa de acesso a internet.' % e.reason)
+
+
+def google_access_token(s):
+    if _google_token['token'] and _google_token['exp'] > time.time() + 60:
+        return _google_token['token']
+    try:
+        tok = http_form_post(GOOGLE_TOKEN_URL, {
+            'client_id': s['googleClientId'], 'client_secret': s['googleClientSecret'],
+            'refresh_token': s['googleRefreshToken'], 'grant_type': 'refresh_token'})
+    except RuntimeError as e:
+        if 'invalid_grant' in str(e):
+            update_mail_settings({'googleRefreshToken': '', 'googleEmail': ''})
+            _google_token['token'] = ''
+            raise RuntimeError('A permissao do Google expirou ou foi revogada. Reconecte a conta no painel "Avisos por e-mail".')
+        raise
+    _google_token['token'] = tok['access_token']
+    _google_token['exp'] = time.time() + int(tok.get('expires_in', 3600))
+    return _google_token['token']
+
+
+def send_via_gmail(s, to, subject, text, html_body=None, cc=None):
+    msg = EmailMessage()
+    msg['From'] = formataddr(('Gest\u00e3o de Projetos', s['googleEmail'])) if s['googleEmail'] else 'me'
+    msg['To'] = to
+    if cc:
+        msg['Cc'] = cc
+    msg['Subject'] = subject
+    msg.set_content(text)
+    if html_body:
+        msg.add_alternative(html_body, subtype='html')
+    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode('ascii')
+    token = google_access_token(s)
+    req = urllib.request.Request(GMAIL_SEND_URL, data=json.dumps({'raw': raw}).encode('utf-8'),
+                                 headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token})
+    _http_json(req)
+
+
 def send_mail(s, to, subject, text, html_body=None, cc=None):
+    if s['provider'] == 'google':
+        return send_via_gmail(s, to, subject, text, html_body, cc)
     msg = EmailMessage()
     msg['From'] = s['from']
     msg['To'] = to
@@ -434,6 +546,12 @@ class Handler(BaseHTTPRequestHandler):
     def send_json(self, status, obj, extra=None, close=False):
         self.send_bytes(status, json.dumps(obj).encode('utf-8'), 'application/json; charset=utf-8', extra, close)
 
+    def send_html(self, status, title, message, script=''):
+        page = ('<!doctype html><meta charset="utf-8"><title>%s</title><body style="font-family:Segoe UI,Arial,sans-serif;'
+                'max-width:460px;margin:80px auto;padding:0 20px;color:#16212f"><h2 style="color:#0d385b">%s</h2><p>%s</p>'
+                '<script>%s</script></body>') % (html.escape(title), html.escape(title), html.escape(message), script)
+        self.send_bytes(status, page.encode('utf-8'), 'text/html; charset=utf-8')
+
     def err(self, status, code, close=False, **more):
         d = {'error': code}
         d.update(more)
@@ -645,6 +763,55 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/settings/email/run' and method == 'POST':
                 return self.send_json(200, {'result': run_mail_check()})
 
+        # ---- conexao com a conta Google (admin)
+        if path.startswith('/api/google/'):
+            if not is_admin:
+                return self.err(403, 'forbidden')
+            if path == '/api/google/start' and method == 'GET':
+                st = get_mail_settings()
+                if not (st['googleClientId'] and st['googleClientSecret']):
+                    return self.send_html(400, 'Falta o ID do cliente e a chave secreta', 'Preencha e salve o ID do cliente e a chave secreta do Google no painel antes de conectar.')
+                state = secrets.token_urlsafe(24)
+                with _oauth_lock:
+                    for k in [k for k, v in _oauth_states.items() if v[1] < time.time()]:
+                        _oauth_states.pop(k, None)
+                    _oauth_states[state] = (user['id'], time.time() + 600)
+                url = GOOGLE_AUTH_URL + '?' + urllib.parse.urlencode({
+                    'client_id': st['googleClientId'], 'redirect_uri': google_redirect_uri(), 'response_type': 'code',
+                    'scope': GOOGLE_SCOPES, 'access_type': 'offline', 'prompt': 'consent', 'state': state})
+                self.send_response(302)
+                self.send_header('Location', url)
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+                return
+            if path == '/api/google/callback' and method == 'GET':
+                state = query.get('state', [''])[0]
+                with _oauth_lock:
+                    entry = _oauth_states.pop(state, None)
+                if not entry or entry[0] != user['id'] or entry[1] < time.time():
+                    return self.send_html(400, 'Link expirado', 'Volte ao painel e clique em "Conectar com Google" de novo.')
+                if query.get('error'):
+                    return self.send_html(400, 'Permissao nao concedida', 'O Google informou: %s. Volte ao painel e tente de novo.' % query['error'][0])
+                st = get_mail_settings()
+                try:
+                    tok = http_form_post(GOOGLE_TOKEN_URL, {
+                        'code': query.get('code', [''])[0], 'client_id': st['googleClientId'],
+                        'client_secret': st['googleClientSecret'], 'redirect_uri': google_redirect_uri(),
+                        'grant_type': 'authorization_code'})
+                    if not tok.get('refresh_token'):
+                        raise RuntimeError('O Google nao devolveu a permissao permanente. Tente conectar de novo.')
+                    info = _http_json(urllib.request.Request(GOOGLE_USERINFO_URL, headers={'Authorization': 'Bearer ' + tok['access_token']}))
+                except RuntimeError as e:
+                    return self.send_html(502, 'Nao foi possivel conectar', str(e))
+                update_mail_settings({'googleRefreshToken': tok['refresh_token'], 'googleEmail': info.get('email', '')})
+                _google_token['token'] = ''
+                return self.send_html(200, 'Conectado!', 'Conta %s conectada. Pode fechar esta aba e voltar ao sistema.' % info.get('email', ''),
+                                      script='try{window.opener&&window.opener.postMessage("google-connected","*")}catch(e){}')
+            if path == '/api/google/disconnect' and method == 'POST':
+                update_mail_settings({'googleRefreshToken': '', 'googleEmail': ''})
+                _google_token['token'] = ''
+                return self.send_json(200, {'ok': True})
+
         # ---- projetos
         if path == '/api/projects' and method == 'GET':
             if is_admin:
@@ -811,6 +978,7 @@ def main():
     port = int(os.environ.get('PORT') or DEFAULT_PORT)
     if '--porta' in sys.argv:
         port = int(sys.argv[sys.argv.index('--porta') + 1])
+    RUNTIME['port'] = port
     init_db()
     try:
         httpd = ThreadingHTTPServer(('0.0.0.0', port), Handler)

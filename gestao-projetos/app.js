@@ -405,6 +405,13 @@ function wireEmailPanel() {
       $('mail-days').value = s.daysBefore;
       $('mail-host').value = s.host;
       $('mail-port').value = s.port;
+      $('mail-provider').value = s.provider || 'google';
+      $('google-client-id').value = s.googleClientId || '';
+      $('google-client-secret').value = '';
+      $('google-client-secret').placeholder = s.hasGoogleSecret ? '(mantida — digite para trocar)' : '';
+      $('google-redirect').value = s.redirectUri || '';
+      showGoogleState(s);
+      showProviderBox();
       $('mail-secure').checked = s.secure;
       $('mail-insecure').checked = !!s.insecureTls;
       $('mail-user').value = s.user;
@@ -425,6 +432,9 @@ function wireEmailPanel() {
         daysBefore: Number($('mail-days').value),
         host: $('mail-host').value,
         port: Number($('mail-port').value),
+        provider: $('mail-provider').value,
+        googleClientId: $('google-client-id').value,
+        googleClientSecret: $('google-client-secret').value,
         secure: $('mail-secure').checked,
         insecureTls: $('mail-insecure').checked,
         user: $('mail-user').value,
@@ -436,7 +446,67 @@ function wireEmailPanel() {
     });
     if (!res.ok) throw new Error('O servidor recusou salvar a configuração.');
     $('mail-password').value = '';
+    $('google-client-secret').value = '';
   }
+
+  function showProviderBox() {
+    const google = $('mail-provider').value === 'google';
+    $('mail-google-box').hidden = !google;
+    $('mail-smtp-box').hidden = google;
+  }
+
+  function showGoogleState(s) {
+    const el = $('google-status');
+    if (s.googleConnected) {
+      el.className = 'google-status ok';
+      el.textContent = 'Conectado como ' + (s.googleEmail || 'conta Google');
+    } else {
+      el.className = 'google-status';
+      el.textContent = 'Ainda não conectado.';
+    }
+    $('btn-google-connect').textContent = s.googleConnected ? 'Reconectar' : 'Conectar com Google';
+    $('btn-google-disconnect').hidden = !s.googleConnected;
+    const local = ['localhost', '127.0.0.1'].indexOf(location.hostname) >= 0;
+    $('google-local-warning').hidden = local;
+  }
+
+  $('mail-provider').addEventListener('change', showProviderBox);
+
+  let pollTimer = null;
+  async function refreshGoogleState() {
+    const res = await apiFetch('/settings/email');
+    if (!res.ok) return null;
+    const s = (await res.json()).settings;
+    showGoogleState(s);
+    return s;
+  }
+  $('btn-google-connect').addEventListener('click', async () => {
+    if (['localhost', '127.0.0.1'].indexOf(location.hostname) < 0) {
+      say('Abra o sistema em http://localhost:' + (location.port || 80) + ' no computador do servidor para conectar.');
+      return;
+    }
+    try {
+      await save();
+      const s = await refreshGoogleState();
+      if (!s || !s.googleClientId || !s.hasGoogleSecret) { say('Preencha o ID do cliente e a chave secreta primeiro.'); return; }
+      window.open('/api/google/start', '_blank');
+      say('Aguardando a permissão no Google (outra aba)...');
+      clearInterval(pollTimer);
+      let tries = 0;
+      pollTimer = setInterval(async () => {
+        tries++;
+        const st = await refreshGoogleState().catch(() => null);
+        if (st && st.googleConnected) { clearInterval(pollTimer); say('Conta Google conectada! Agora use "Enviar teste".'); }
+        else if (tries > 90) { clearInterval(pollTimer); say(''); }
+      }, 2000);
+    } catch (e) { say(e.message); }
+  });
+  $('btn-google-disconnect').addEventListener('click', async () => {
+    if (!confirm('Desconectar a conta Google? Os avisos param até conectar de novo.')) return;
+    await apiFetch('/google/disconnect', { method: 'POST', body: '{}' });
+    await refreshGoogleState();
+    say('Conta desconectada.');
+  });
 
   $('btn-email-toggle').addEventListener('click', () => {
     const panel = $('email-panel');
@@ -455,7 +525,7 @@ function wireEmailPanel() {
       const b = await res.json();
       if (!res.ok) {
         if (b.error === 'invalid_email') throw new Error('Digite um e-mail válido para o teste.');
-        if (b.error === 'not_configured') throw new Error('Preencha ao menos o servidor e o remetente.');
+        if (b.error === 'not_configured') throw new Error($('mail-provider').value === 'google' ? 'Conecte a conta Google primeiro.' : 'Preencha ao menos o servidor e o remetente.');
         throw new Error('Falhou: ' + (b.detail || 'erro ao enviar'));
       }
       say('Teste enviado! Confira a caixa de entrada (e o spam).');
@@ -467,7 +537,7 @@ function wireEmailPanel() {
       say('Verificando...');
       const res = await apiFetch('/settings/email/run', { method: 'POST', body: '{}' });
       const r = (await res.json()).result;
-      if (r.disabled) return say('Ative "Enviar avisos automáticos" e preencha servidor e remetente.');
+      if (r.disabled) return say('Ative "Enviar avisos automáticos" e conclua a configuração (conectar o Google ou preencher o servidor).');
       say(`Enviados: ${r.sent}` + (r.skippedNoRecipient ? ` · sem e-mail do responsável: ${r.skippedNoRecipient}` : '') + (r.failed ? ` · falhas: ${r.failed} (${r.errors[0]})` : ''));
     } catch (e) { say(e.message); }
   });

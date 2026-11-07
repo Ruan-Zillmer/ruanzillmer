@@ -100,17 +100,52 @@
           <label for="mail-days">Avisar quantos dias antes do prazo</label>
           <input id="mail-days" type="number" min="0" max="30" value="2">
         </div>
-        <p class="drive-status" style="margin:4px 0 0;">Servidor de e-mail (SMTP) da empresa</p>
-        <div class="field"><label for="mail-host">Servidor</label><input id="mail-host" type="text" placeholder="ex: smtp.empresa.com.br"></div>
-        <div class="mail-row">
-          <div class="field"><label for="mail-port">Porta</label><input id="mail-port" type="number" value="587"></div>
-          <label class="check-row"><input type="checkbox" id="mail-secure"> SSL direto (porta 465)</label>
+        <div class="field">
+          <label for="mail-provider">Enviar usando</label>
+          <select id="mail-provider">
+            <option value="google">Minha conta Google (Gmail)</option>
+            <option value="smtp">Servidor de e-mail (SMTP)</option>
+          </select>
         </div>
-        <label class="check-row"><input type="checkbox" id="mail-insecure"> Aceitar certificado não confiável (servidor interno)</label>
-        <div class="field"><label for="mail-user">Usuário</label><input id="mail-user" type="text" autocomplete="off"></div>
-        <div class="field"><label for="mail-password">Senha</label><input id="mail-password" type="password" autocomplete="new-password"></div>
-        <div class="field"><label for="mail-from">Remetente</label><input id="mail-from" type="text" placeholder="Gestão de Projetos &lt;projetos@empresa.com.br&gt;"></div>
-        <div class="field"><label for="mail-appurl">Endereço do sistema (vai no e-mail)</label><input id="mail-appurl" type="text" placeholder="http://192.168.0.15:3000"></div>
+
+        <div id="mail-google-box" class="mail-box">
+          <p class="drive-status">Os avisos saem direto do seu Gmail, sem passar pelo servidor de e-mail da empresa.</p>
+          <div id="google-status" class="google-status"></div>
+          <div class="field"><label for="google-client-id">ID do cliente (Client ID)</label><input id="google-client-id" type="text" autocomplete="off"></div>
+          <div class="field"><label for="google-client-secret">Chave secreta (Client secret)</label><input id="google-client-secret" type="password" autocomplete="new-password"></div>
+          <div class="field"><label for="google-redirect">Endereço de retorno (cole no Google)</label><input id="google-redirect" type="text" readonly></div>
+          <div class="mail-row">
+            <button id="btn-google-connect" class="btn btn-primary">Conectar com Google</button>
+            <button id="btn-google-disconnect" class="btn" hidden>Desconectar</button>
+          </div>
+          <p class="drive-status" id="google-local-warning" hidden>Para conectar, abra o sistema <strong>no próprio computador do servidor</strong>, pelo endereço <strong>http://localhost</strong>.</p>
+          <details class="mail-help">
+            <summary>Como obter o ID e a chave (só uma vez)</summary>
+            <ol>
+              <li>Entre em <strong>console.cloud.google.com</strong> com o seu Gmail e crie um projeto.</li>
+              <li>Em <em>APIs e serviços → Biblioteca</em>, ative a <strong>Gmail API</strong>.</li>
+              <li>Em <em>Tela de permissão OAuth</em>: tipo <strong>Externo</strong>, preencha nome e e-mail; em <em>Usuários de teste</em> adicione o seu Gmail; depois clique em <strong>Publicar app</strong> (sem isso a permissão expira em 7 dias).</li>
+              <li>Em <em>Credenciais → Criar credenciais → ID do cliente OAuth</em>: tipo <strong>Aplicativo da Web</strong>; em <em>URIs de redirecionamento autorizados</em> cole o endereço de retorno acima.</li>
+              <li>Copie o <strong>ID do cliente</strong> e a <strong>Chave secreta</strong> para os campos acima, salve e clique em <strong>Conectar com Google</strong>.</li>
+              <li>Na tela do Google, escolha sua conta. Se aparecer "app não verificado", clique em <em>Avançado → Acessar</em> (é o seu próprio app) e permita o envio de e-mails.</li>
+            </ol>
+          </details>
+        </div>
+
+        <div id="mail-smtp-box" class="mail-box" hidden>
+          <p class="drive-status" style="margin:4px 0 0;">Servidor de e-mail (SMTP)</p>
+          <div class="field"><label for="mail-host">Servidor</label><input id="mail-host" type="text" placeholder="ex: smtp.empresa.com.br"></div>
+          <div class="mail-row">
+            <div class="field"><label for="mail-port">Porta</label><input id="mail-port" type="number" value="587"></div>
+            <label class="check-row"><input type="checkbox" id="mail-secure"> SSL direto (porta 465)</label>
+          </div>
+          <label class="check-row"><input type="checkbox" id="mail-insecure"> Aceitar certificado não confiável (servidor interno)</label>
+          <div class="field"><label for="mail-user">Usuário</label><input id="mail-user" type="text" autocomplete="off"></div>
+          <div class="field"><label for="mail-password">Senha</label><input id="mail-password" type="password" autocomplete="new-password"></div>
+          <div class="field"><label for="mail-from">Remetente</label><input id="mail-from" type="text" placeholder="Gestão de Projetos &lt;projetos@empresa.com.br&gt;"></div>
+        </div>
+
+        <div class="field"><label for="mail-appurl">Endereço do sistema (vai no e-mail)</label><input id="mail-appurl" type="text" placeholder="http://192.168.0.15:2523"></div>
         <label class="check-row"><input type="checkbox" id="mail-ccowner"> Enviar cópia para quem criou o projeto</label>
         <button id="btn-mail-save" class="btn btn-primary">Salvar configuração</button>
         <hr>

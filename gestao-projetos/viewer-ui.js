@@ -116,7 +116,7 @@ const FileUI = (() => {
           <div class="v3d-canvas"></div>
           <div class="v3d-overlay v3d-loading"><span class="v3d-spinner"></span><span class="v3d-loading-text">Carregando...</span></div>
           <div class="v3d-info" hidden></div>
-          <div class="v3d-help" data-3d-only>Botão esquerdo: girar · Direito: mover · Roda: zoom</div>
+          <div class="v3d-help" data-3d-only>Botão esquerdo: girar livremente · Direito: mover · Roda: zoom</div>
         </div>
       </div>`;
   }

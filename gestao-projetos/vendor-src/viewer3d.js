@@ -1,7 +1,7 @@
 // Visualizador 3D do sistema (three.js). Este arquivo é a FONTE; o que o navegador
 // carrega é vendor/viewer3d.js (gerado com "npm run build" nesta pasta).
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader.js';
@@ -60,9 +60,17 @@ function create(container, options) {
   const perspective = new THREE.PerspectiveCamera(40, 1, 0.1, 1e6);
   const orthographic = new THREE.OrthographicCamera(-1, 1, 1, -1, -1e6, 1e6);
   let camera = perspective;
-  let controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.12;
+  // Rotação livre em 360° (sem travar no topo/embaixo): esquerdo gira, direito move, roda aproxima.
+  function makeControls(cam) {
+    const c = new TrackballControls(cam, renderer.domElement);
+    c.rotateSpeed = 2.0;
+    c.zoomSpeed = 1.1;
+    c.panSpeed = 0.9;
+    c.dynamicDampingFactor = 0.14;
+    c.handleResize();
+    return c;
+  }
+  let controls = makeControls(camera);
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0x7d8a99, 1.25));
   const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
@@ -93,6 +101,7 @@ function create(container, options) {
     perspective.aspect = w / h;
     perspective.updateProjectionMatrix();
     updateOrthoFrustum();
+    if (controls && controls.handleResize) controls.handleResize();
   }
   const ro = new ResizeObserver(resize);
   ro.observe(container);
@@ -295,9 +304,7 @@ function create(container, options) {
     camera.position.copy(pos);
     camera.up.copy(up);
     controls.dispose();
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.12;
+    controls = makeControls(camera);
     controls.target.copy(bounds.getCenter(new THREE.Vector3()));
     if (on) {
       const dist = pos.distanceTo(controls.target);
@@ -400,6 +407,8 @@ function create(container, options) {
     rotateModel,
     resetOrientation,
     getOrientation() { return orientSteps.slice(); },
+    getCameraUp() { return camera.up.clone().applyQuaternion(camera.quaternion.clone().identity()).toArray(); },
+    getCameraMatrixUp() { return new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion).toArray(); },
     setClip(axis, t) { state.clipAxis = axis || null; state.clipT = t == null ? 1 : t; applyState(); },
     getState() { return Object.assign({}, state); },
     snapshot() { renderer.render(scene, camera); return renderer.domElement.toDataURL('image/png'); },

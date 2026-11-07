@@ -5,8 +5,8 @@
       "name": "Iniciar Gestão de Projetos (servidor)",
       "type": "node-terminal",
       "request": "launch",
-      "command": "iniciar-servidor.bat",
-      "cwd": "${workspaceFolder}/server"
+      "command": "python servidor.py",
+      "cwd": "${workspaceFolder}"
     }
   ]
 }

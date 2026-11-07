@@ -2,79 +2,43 @@
 
 Aplicativo de controle de projetos: prioridade, responsáveis, status, data de início, prazo, avanço (tarefas/etapas) e compra de materiais organizada por categoria.
 
-Roda como um site + servidor: o servidor (Node.js) fica ligado num computador da empresa e guarda tudo num banco de dados. Todo mundo acessa pelo navegador, de qualquer computador da rede, e as alterações são salvas automaticamente — sem pendrive, sem Google Drive, sem exportar/importar nada.
+Roda como um site + servidor: um único arquivo, `servidor.py`, fica ligado num computador da empresa e guarda tudo num banco de dados. Todo mundo acessa pelo navegador, de qualquer computador da rede, e as alterações são salvas automaticamente — sem pendrive, sem Google Drive, sem exportar/importar nada.
 
-## Como colocar para rodar no computador que fica sempre ligado
+**Não precisa instalar nada além do Python** (que já vem em muitos computadores): o servidor usa só o que o próprio Python oferece — sem `pip`, sem `npm`, sem baixar pacotes, sem compilar nada.
 
-Só precisa ser feito uma vez, nesse computador.
+## Como colocar para rodar
 
-### 1. Instalar o Node.js
+1. **Extraia o projeto inteiro** (o `.zip`) numa pasta fixa, por exemplo `C:\gestao-projetos`. Não abra de dentro do `.zip`.
+2. **Dê duplo clique em `servidor.py`.** (Ou, num terminal dentro da pasta: `python servidor.py`; no Windows também funciona `py servidor.py`.)
+3. Uma janela abre e mostra o endereço, por exemplo:
+   ```
+   Neste computador:        http://localhost:2523
+   Nos OUTROS computadores: http://192.168.3.104:2523
+   ```
+   O navegador também abre sozinho. **Deixe a janela aberta** — é ela que mantém o servidor no ar. O endereço também fica salvo no arquivo `endereco.txt`.
+4. Na primeira vez, o app pede para criar o **usuário administrador**. Depois disso, o administrador cria os demais usuários pelo botão "Usuários".
 
-**Se você tem permissão de administrador** nesse computador: baixe e instale a versão **LTS** (22.13 ou mais nova) em [nodejs.org](https://nodejs.org/) (é só clicar em "próximo" até terminar, igual instalar qualquer programa).
+Os outros computadores só precisam abrir o endereço de "Nos OUTROS computadores" no navegador — nada para instalar neles.
 
-**Se você NÃO tem permissão de administrador** (comum em computador de empresa): dá pra usar o Node.js sem instalar nada.
-
-1. Em [nodejs.org/en/download](https://nodejs.org/en/download), baixe a versão **"Windows Binary (.zip)"** (não é o instalador `.msi`, é um `.zip` comum).
-2. Extraia o conteúdo do `.zip` dentro da pasta `gestao-projetos/server/node-portable` (que já vem na pasta do projeto), de forma que o arquivo `node.exe` fique direto dentro dela, sem subpastas no meio.
-3. Pronto — o `iniciar-servidor.bat` detecta essa pasta sozinho e usa esse Node.js portátil automaticamente, sem precisar de instalação nem permissão nenhuma.
-
-Isso só precisa ser feito uma vez nesse computador.
-
-### 2. Copiar a pasta do projeto
-
-Copie a pasta `gestao-projetos` inteira (a mesma que você já tem, incluindo a subpasta `server`) para algum lugar fixo nesse computador, por exemplo `C:\gestao-projetos` (Windows) ou `~/gestao-projetos` (Linux/Mac).
-
-### 3. Iniciar o servidor
-
-**Jeito mais simples (Windows), só com o que já vem no computador + o Node.js do passo 1:**
-
-1. Abra a pasta `gestao-projetos\server` no Explorador de Arquivos.
-2. Dê duplo clique em `iniciar-servidor.bat`.
-
-Isso já abre uma janela de terminal sozinho e inicia tudo. Se o Node.js não estiver instalado, essa janela agora avisa claramente e te manda direto pro passo 1 — nesse caso, instale o Node.js e dê duplo clique de novo.
-
-Se preferir digitar manualmente em vez de duplo clique: abra o Terminal do Windows (ou Prompt de Comando), entre na pasta com `cd caminho\para\gestao-projetos\server` e rode `node start.js`.
-
-> **Linux/Mac**: abra um terminal na pasta `gestao-projetos/server` e rode `./iniciar-servidor.sh` (se der erro de permissão, rode antes `chmod +x iniciar-servidor.sh`).
+> **Não tem Python?** Baixe em [python.org/downloads](https://www.python.org/downloads/) (3.9 ou mais novo; no Windows, marque "Add python.exe to PATH"). Sem administrador, a Microsoft Store também instala o Python.
 >
-> **Prefere abrir a pasta no VSCode em vez de mexer no Explorador de Arquivos?**
-> 1. VSCode → File → Open Folder → selecione a pasta `gestao-projetos`.
-> 2. Aperte **F5** (ou o ícone "Run and Debug" na barra lateral → ▷ verde).
->
-> Isso roda o mesmo `iniciar-servidor.bat` de cima, só que dentro do terminal do próprio VSCode — usa a mesma detecção automática de Node.js normal ou portátil, então continua funcionando sem precisar de admin.
-
-Uma janela/terminal vai ficar aberta mostrando `Gestão de Projetos - AUTOMAÇÃO rodando em http://localhost:2523` — **deixe essa janela aberta**, é ela que mantém o servidor no ar. Pode minimizar, só não feche/pare.
-
-### 4. Descobrir o endereço na rede
-
-Ao iniciar, a janela do servidor já mostra o endereço pronto, na linha **"Nos outros computadores da rede, abra no navegador: http://192.168.x.x:2523"**. É só usar esse.
-
-No próprio computador servidor, acesse `http://localhost:2523` para testar.
-
-Para os **outros computadores** acessarem, eles precisam do IP desse computador na rede local:
-
-- **Windows**: abra o Prompt de Comando e digite `ipconfig` — procure "Endereço IPv4" (algo como `192.168.0.15`).
-- **Linux/Mac**: no terminal, digite `ip addr` ou `ifconfig` — procure algo parecido.
-
-Nos outros computadores, acesse pelo navegador: `http://<esse-IP>:2523` (ex: `http://192.168.0.15:2523`). Se não abrir, veja a seção **Problemas comuns** abaixo (geralmente é o firewall do Windows).
-
-### 5. Primeiro acesso
-
-Na primeira vez que alguém abrir o endereço, o app pede para criar o **usuário administrador**. Depois disso, o administrador cria os demais usuários pelo botão "Usuários" no topo.
+> **Prefere o VSCode?** Abra a pasta `gestao-projetos` e aperte **F5** (ou `Ctrl+Shift+B`).
 
 ## Manter o servidor sempre rodando
 
-Como é "sempre ligado", o principal é deixar aquela janela do passo 3 aberta. Duas dicas para não perder isso num desligamento acidental ou reinício do Windows Update:
+Como é "sempre ligado", o principal é deixar a janela do servidor aberta. Para não perder isso num reinício do Windows:
 
-- **Mais simples**: crie um atalho do `iniciar-servidor.bat` (Windows) e coloque na pasta de Inicialização do Windows (`Win + R`, digite `shell:startup`, cole o atalho lá). Assim, sempre que o computador ligar e alguém entrar na conta do Windows, o servidor sobe sozinho.
-- **Mais robusto** (não precisa ninguém logado no Windows): peça para o TI configurar como um serviço do Windows, usando uma ferramenta como o [NSSM](https://nssm.cc/), apontando para `node.exe server.js` dentro da pasta `server`. No Linux, o equivalente é criar um serviço `systemd`. Se quiser, posso te passar o passo a passo de qualquer uma dessas opções.
+- **Mais simples**: crie um atalho do `servidor.py` e coloque na pasta de Inicialização do Windows (`Win + R`, digite `shell:startup`, cole o atalho lá). Quando o computador ligar e alguém entrar na conta, o servidor sobe sozinho.
+- **Mais robusto** (não precisa ninguém logado): peça ao TI para configurar como serviço do Windows (ex: com o [NSSM](https://nssm.cc/), apontando para `python.exe servidor.py`). No Linux, o equivalente é um serviço `systemd`.
 
 ## Problemas comuns
 
-- **Os outros computadores não conseguem abrir o endereço**: geralmente é o Firewall do Windows bloqueando a porta 2523. No computador servidor, abra "Firewall do Windows Defender" → "Configurações avançadas" → "Regras de Entrada" → "Nova Regra" → Porta → TCP → 2523 → Permitir.
-- **`npm install` falhou**: confirme que o Node.js foi instalado corretamente (`node -v` no terminal deve mostrar uma versão) e tente rodar `npm install` de novo dentro da pasta `server`.
-- **Preciso trocar a porta 2523**: defina a variável de ambiente `PORT` antes de iniciar (ex: no Windows, `set PORT=8080 && node server.js`).
-- **Esqueci a senha do administrador**: por enquanto não existe recuperação de senha pela tela; peça para eu te passar um comando para redefinir direto no banco de dados, ou crie um novo administrador apagando o arquivo `server/data/gestao.db` (isso apaga TODOS os projetos também — só faça isso se realmente não tiver outro jeito).
+- **Os outros computadores não conseguem abrir o endereço**: se `http://localhost:2523` abre no computador servidor mas o endereço com o IP não abre nos outros, é o Firewall do Windows bloqueando a porta. Peça ao TI para liberar a porta TCP **2523** de entrada nesse computador ("Firewall do Windows Defender" → "Configurações avançadas" → "Regras de Entrada" → "Nova Regra" → Porta → TCP → 2523 → Permitir).
+- **O IP mudou depois de reiniciar**: peça ao TI para fixar o IP desse computador. O IP atual sempre aparece na janela do servidor e em `endereco.txt`.
+- **A janela abre e fecha logo**: abra o Prompt de Comando, entre na pasta do projeto (`cd caminho\gestao-projetos`) e rode `python servidor.py` — a mensagem de erro fica na tela.
+- **"Não foi possível abrir a porta"**: o servidor já está aberto em outra janela, ou outro programa usa a porta. Use outra: `python servidor.py --porta 2524`.
+- **Trocar a porta**: o padrão é 2523. Para outra, rode `python servidor.py --porta 8080`.
+- **Esqueci a senha do administrador**: não existe recuperação de senha pela tela. Como último recurso, pare o servidor e apague o arquivo `dados/gestao.db` (isso apaga TODOS os projetos e usuários, mas os arquivos anexados continuam em `dados/files`). Antes, tente lembrar com outro administrador, se houver.
 
 ## Conceito do projeto e visualizador 3D
 
@@ -85,9 +49,9 @@ Cada **etapa** também aceita arquivos (vários, se quiser guardar revisões). C
 - **Formatos 3D**: STEP/STP, IGES/IGS, BREP, STL, OBJ, GLB/GLTF, 3MF, PLY. (STEP e IGES são os que o SolidWorks, Inventor, Fusion e similares exportam como "neutros" — é o formato recomendado.)
 - **Também abre no navegador**: PDF e imagens (PNG, JPG...). Qualquer outro formato (ex: `.sldprt`, `.dwg`) é guardado no servidor e pode ser baixado, mas não tem visualização — exporte como STEP para visualizar.
 - **Ferramentas do visualizador**: vistas Iso/Frente/Topo/Direita, arestas, malha (wireframe), grade, câmera ortogonal, **corte por plano** (eixo X/Y/Z com controle deslizante), dimensões gerais (X × Y × Z, em mm para STEP/IGES) e **captura de imagem** da vista atual.
-- Arquivos grandes: o envio mostra uma barra de progresso. O limite padrão é 1 GB por arquivo; para mudar, defina a variável `MAX_UPLOAD_MB` antes de iniciar (ex: `set MAX_UPLOAD_MB=2048`).
-- Os arquivos ficam em `server/data/files/` e só quem tem acesso ao projeto (dono e administradores) consegue baixá-los — a verificação é feita no servidor.
-- O visualizador funciona **sem internet** (todas as bibliotecas já vêm na pasta `vendor/`). Se um dia precisar reconstruí-lo, veja `vendor-src/`.
+- Arquivos grandes: o envio mostra uma barra de progresso. O limite padrão é 1 GB por arquivo; para mudar, defina a variável `MAX_UPLOAD_MB` antes de iniciar (ex: `set MAX_UPLOAD_MB=2048` e depois `python servidor.py`).
+- Os arquivos ficam em `dados/files/` e só quem tem acesso ao projeto (dono e administradores) consegue baixá-los — a verificação é feita no servidor.
+- O visualizador funciona **sem internet** (todas as bibliotecas já vêm na pasta `vendor/`). Se um dia precisar reconstruí-lo, veja `vendor-src/` (só aí é preciso Node.js; para usar o sistema, não).
 
 ## Prazos por tópico
 
@@ -104,7 +68,7 @@ O servidor confere os prazos sozinho (ao iniciar e a cada 30 minutos) e manda um
 
 **Quem recebe:** o e-mail do responsável. Você pode digitar o e-mail direto no campo **E-mail** do tópico ou da etapa, ou cadastrar o e-mail do usuário (botão **Usuários**) — nesse caso, se o nome do responsável for igual ao nome do usuário (ex: responsável "maria" e usuário "Maria"), o aviso vai para ele automaticamente. A etapa sem e-mail usa o do tópico dela. Quem criou o projeto recebe cópia (dá para desligar). Se ninguém tiver e-mail, o botão **Verificar prazos agora** avisa quantos ficaram sem destinatário.
 
-> O servidor precisa estar ligado e com acesso ao servidor de e-mail da empresa. A senha do SMTP fica guardada no banco (`server/data`) — use uma conta só para esse fim.
+> O servidor precisa estar ligado e com acesso ao servidor de e-mail da empresa. A senha do SMTP fica guardada no banco (`dados`) — use uma conta só para esse fim.
 
 ## Login e usuários
 
@@ -119,7 +83,7 @@ O login fica lembrado no navegador (por 30 dias) até clicar em **"Sair"**.
 
 ## Backup
 
-O servidor já salva tudo sozinho: os dados no banco `server/data/gestao.db` e os desenhos/arquivos anexados em `server/data/files/`. **Copie a pasta `server/data` inteira** (banco + arquivos) para backup — só o `.db` não leva os desenhos. Vale a pena, de vez em quando, copiar essa pasta para outro lugar (outro HD, nuvem, etc.) como segurança contra perda do computador. O botão **"Exportar backup"** no app também baixa uma cópia em `.json` dos projetos que você está vendo (sem os arquivos anexados), útil antes de uma edição arriscada.
+O servidor já salva tudo sozinho: os dados no banco `dados/gestao.db` e os desenhos/arquivos anexados em `dados/files/`. **Copie a pasta `dados` inteira** (banco + arquivos) para backup — só o `.db` não leva os desenhos. Vale a pena, de vez em quando, copiar essa pasta para outro lugar (outro HD, nuvem, etc.) como segurança contra perda do computador. O botão **"Exportar backup"** no app também baixa uma cópia em `.json` dos projetos que você está vendo (sem os arquivos anexados), útil antes de uma edição arriscada.
 
 ## Funcionalidades
 
@@ -157,15 +121,9 @@ gestao-projetos/
 ├── vendor-src/                    # só para quem quiser reconstruir vendor/viewer3d.js (npm run build)
 ├── assets/
 │   └── logo-screw.png            # arquivo de referência do logotipo (opcional, não é carregado pelo app)
-├── server/                        # o servidor que fica sempre ligado
-│   ├── start.js                  # ponto de entrada: instala dependências (se faltar) e inicia
-│   ├── server.js                 # a API (login, usuários, projetos) e quem serve a página
-│   ├── mailer.js                 # avisos automáticos de prazo por e-mail (SMTP)
-│   ├── db.js                     # conexão com o banco de dados (SQLite)
-│   ├── package.json              # lista de dependências (Express, SQLite, etc.)
-│   ├── iniciar-servidor.bat      # duplo clique para iniciar no Windows (sem VSCode)
-│   ├── iniciar-servidor.sh       # rodar no Linux/Mac (sem VSCode): ./iniciar-servidor.sh
-│   └── data/                     # criado sozinho: banco de dados (gestao.db) e arquivos anexados (files/)
+├── servidor.py                    # o servidor (um arquivo só): duplo clique para iniciar
+├── dados/                         # criado sozinho: banco de dados (gestao.db) e arquivos anexados (files/)
+├── endereco.txt                   # criado sozinho: endereço de rede do servidor
 └── README.md                      # este arquivo
 ```
 

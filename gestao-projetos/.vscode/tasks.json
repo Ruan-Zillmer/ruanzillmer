@@ -2,22 +2,12 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Iniciar servidor (Gestão de Projetos)",
+      "label": "Iniciar Gestão de Projetos (servidor)",
       "type": "shell",
-      "command": "iniciar-servidor.bat",
-      "options": {
-        "cwd": "${workspaceFolder}/server"
-      },
-      "isBackground": false,
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "clear": true
-      },
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      }
+      "command": "python servidor.py",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": { "kind": "build", "isDefault": true }
     }
   ]
 }

@@ -1,0 +1,4 @@
+dados/
+endereco.txt
+__pycache__/
+vendor-src/node_modules/

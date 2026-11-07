@@ -406,6 +406,7 @@ function wireEmailPanel() {
       $('mail-host').value = s.host;
       $('mail-port').value = s.port;
       $('mail-secure').checked = s.secure;
+      $('mail-insecure').checked = !!s.insecureTls;
       $('mail-user').value = s.user;
       $('mail-password').value = '';
       $('mail-password').placeholder = s.hasPassword ? '(mantida — digite para trocar)' : '';
@@ -425,6 +426,7 @@ function wireEmailPanel() {
         host: $('mail-host').value,
         port: Number($('mail-port').value),
         secure: $('mail-secure').checked,
+        insecureTls: $('mail-insecure').checked,
         user: $('mail-user').value,
         password: $('mail-password').value,
         from: $('mail-from').value,

@@ -82,10 +82,18 @@ const FileUI = (() => {
             <button type="button" class="v3d-btn" data-view="top">Topo</button>
             <button type="button" class="v3d-btn" data-view="right">Direita</button>
           </div>
+          <div class="v3d-group" data-3d-only title="Se o modelo abriu de cabeça para baixo ou deitado, gire aqui. A posição fica salva para este arquivo.">
+            <span class="v3d-label">Girar</span>
+            <button type="button" class="v3d-btn" data-rot="x:1" title="Girar 90° no eixo X">X 90°</button>
+            <button type="button" class="v3d-btn" data-rot="y:1" title="Girar 90° no eixo Y">Y 90°</button>
+            <button type="button" class="v3d-btn" data-rot="z:1" title="Girar 90° no eixo Z">Z 90°</button>
+            <button type="button" class="v3d-btn" data-rot="x:2" title="Virar de cabeça para baixo (180°)">Inverter</button>
+            <button type="button" class="v3d-btn" data-rot="reset" title="Voltar à posição original do arquivo">Original</button>
+          </div>
           <div class="v3d-group" data-3d-only>
             <button type="button" class="v3d-btn active" data-toggle="edges">Arestas</button>
             <button type="button" class="v3d-btn" data-toggle="wireframe">Malha</button>
-            <button type="button" class="v3d-btn active" data-toggle="grid">Grade</button>
+            <button type="button" class="v3d-btn" data-toggle="grid">Grade</button>
             <button type="button" class="v3d-btn" data-toggle="ortho">Ortogonal</button>
           </div>
           <div class="v3d-group v3d-clip" data-3d-only>
@@ -187,7 +195,7 @@ const FileUI = (() => {
         if (handle.disposed) return null;
         setLoading(root, isCad ? 'Processando modelo CAD (pode levar alguns segundos)...' : 'Montando modelo...');
         // dá um respiro para o navegador pintar a mensagem antes do processamento pesado
-        return new Promise((r) => setTimeout(r, 30)).then(() => api.loadFromBuffer(ext, buffer));
+        return new Promise((r) => setTimeout(r, 30)).then(() => api.loadFromBuffer(ext, buffer, file.orient));
       })
       .then((info) => {
         if (!info || handle.disposed) return;
@@ -209,6 +217,19 @@ const FileUI = (() => {
       const st = api.getState();
       root.querySelectorAll('[data-toggle]').forEach((b) => b.classList.toggle('active', !!st[b.dataset.toggle]));
     }
+
+    root.querySelectorAll('[data-rot]').forEach((b) => b.addEventListener('click', () => {
+      let steps;
+      if (b.dataset.rot === 'reset') steps = api.resetOrientation();
+      else {
+        const [axis, amount] = b.dataset.rot.split(':');
+        steps = api.rotateModel(axis, Number(amount));
+      }
+      // guarda só a preferência de visualização; o arquivo em si nunca é alterado
+      if (steps.some((n) => n !== 0)) file.orient = steps; else delete file.orient;
+      if (api.getState().clipAxis) api.setClip(axisSel.value, Number(range.value) / 100);
+      if (FileUI.onFileChanged) FileUI.onFileChanged(file);
+    }));
 
     root.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => api.setView(b.dataset.view)));
     root.querySelectorAll('[data-toggle]').forEach((b) => b.addEventListener('click', () => {
@@ -438,5 +459,5 @@ const FileUI = (() => {
     return { render };
   }
 
-  return { mountBox, mountInline, openModal, closeModal, disposeInline: disposePersistent, kindOf, extOf, formatSize };
+  return { onFileChanged: null, mountBox, mountInline, openModal, closeModal, disposeInline: disposePersistent, kindOf, extOf, formatSize };
 })();

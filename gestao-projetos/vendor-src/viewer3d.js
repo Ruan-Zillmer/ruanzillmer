@@ -69,12 +69,16 @@ function create(container, options) {
   const fillLight = new THREE.DirectionalLight(0xdfe9f5, 0.6);
   scene.add(keyLight, fillLight, keyLight.target, fillLight.target);
 
+  // scene -> orient (giro escolhido pelo usuário) -> modelRoot (Z-para-cima do CAD) -> modelo
+  const orient = new THREE.Group();
+  scene.add(orient);
   const modelRoot = new THREE.Group();
-  scene.add(modelRoot);
+  orient.add(modelRoot);
+  let orientSteps = [0, 0, 0];
   let grid = null;
   let edgeLines = [];
   let materials = [];
-  let state = { wireframe: false, edges: true, grid: true, ortho: false, clipAxis: null, clipT: 1 };
+  let state = { wireframe: false, edges: true, grid: false, ortho: false, clipAxis: null, clipT: 1 };
   let bounds = new THREE.Box3(new THREE.Vector3(-1, -1, -1), new THREE.Vector3(1, 1, 1));
   let rafId = 0;
   let disposed = false;
@@ -131,6 +135,7 @@ function create(container, options) {
     }
     if (grid) { scene.remove(grid); grid.geometry.dispose(); grid.material.dispose(); grid = null; }
     modelRoot.rotation.set(0, 0, 0);
+    orient.rotation.set(0, 0, 0);
   }
 
   function makeMaterial(color, vertexColors) {
@@ -158,12 +163,15 @@ function create(container, options) {
     return Math.round(n);
   }
 
-  function finishModel(object, zUp) {
+  function finishModel(object, zUp, steps) {
     modelRoot.add(object);
+    orient.rotation.set(0, 0, 0);
+    orient.updateMatrixWorld(true);
     // medidas no sistema de coordenadas do arquivo (antes de girar)
     const rawBox = new THREE.Box3().setFromObject(modelRoot);
     const rawSize = rawBox.getSize(new THREE.Vector3());
     if (zUp) modelRoot.rotation.x = -Math.PI / 2;
+    setOrientSteps(steps);
     modelRoot.updateMatrixWorld(true);
 
     const triangles = countTriangles(modelRoot);
@@ -173,20 +181,48 @@ function create(container, options) {
       list.forEach((m) => { m.clippingPlanes = []; m.side = THREE.DoubleSide; materials.push(m); });
     });
     buildEdges(triangles);
+    refreshBounds();
+    setView('iso');
+    return { triangles, size: { x: rawSize.x, y: rawSize.y, z: rawSize.z } };
+  }
 
+  function setOrientSteps(steps) {
+    orientSteps = (steps && steps.length === 3 ? steps : [0, 0, 0]).map((n) => ((Number(n) || 0) % 4 + 4) % 4);
+    orient.rotation.set(orientSteps[0] * Math.PI / 2, orientSteps[1] * Math.PI / 2, orientSteps[2] * Math.PI / 2, 'XYZ');
+    orient.updateMatrixWorld(true);
+  }
+
+  // recalcula limites, grade e enquadramento depois de carregar ou girar o modelo
+  function refreshBounds() {
     bounds = new THREE.Box3().setFromObject(modelRoot);
     const size = bounds.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z, 1e-6);
+    if (grid) { scene.remove(grid); grid.geometry.dispose(); grid.material.dispose(); grid = null; }
     const gridSize = Math.pow(10, Math.ceil(Math.log10(maxDim * 2)));
     grid = new THREE.GridHelper(gridSize, 20, 0x9fb0c2, 0xd5dde6);
     grid.position.set((bounds.min.x + bounds.max.x) / 2, bounds.min.y, (bounds.min.z + bounds.max.z) / 2);
     grid.visible = state.grid;
     scene.add(grid);
-
     applyState();
     updateOrthoFrustum();
+  }
+
+  // gira o modelo em passos de 90° (axis: 'x' | 'y' | 'z', amount: passos). Devolve os passos atuais.
+  function rotateModel(axis, amount) {
+    const i = { x: 0, y: 1, z: 2 }[axis];
+    const next = orientSteps.slice();
+    next[i] += amount;
+    setOrientSteps(next);
+    refreshBounds();
     setView('iso');
-    return { triangles, size: { x: rawSize.x, y: rawSize.y, z: rawSize.z } };
+    return orientSteps.slice();
+  }
+
+  function resetOrientation() {
+    setOrientSteps([0, 0, 0]);
+    refreshBounds();
+    setView('iso');
+    return orientSteps.slice();
   }
 
   function buildEdges(triangles) {
@@ -284,7 +320,7 @@ function create(container, options) {
     return toCreasedNormals(geometry, (35 * Math.PI) / 180);
   }
 
-  async function loadFromBuffer(ext, buffer) {
+  async function loadFromBuffer(ext, buffer, steps) {
     ext = String(ext || '').toLowerCase();
     clearModel();
     let object;
@@ -350,7 +386,7 @@ function create(container, options) {
     }
 
     if (!object) throw new Error('O arquivo não contém geometria que possa ser exibida.');
-    return finishModel(object, zUp);
+    return finishModel(object, zUp, steps);
   }
 
   const api = {
@@ -361,6 +397,9 @@ function create(container, options) {
     setEdges(v) { state.edges = !!v; applyState(); },
     setGrid(v) { state.grid = !!v; applyState(); },
     setOrtho,
+    rotateModel,
+    resetOrientation,
+    getOrientation() { return orientSteps.slice(); },
     setClip(axis, t) { state.clipAxis = axis || null; state.clipT = t == null ? 1 : t; applyState(); },
     getState() { return Object.assign({}, state); },
     snapshot() { renderer.render(scene, camera); return renderer.domElement.toDataURL('image/png'); },

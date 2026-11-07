@@ -1755,6 +1755,7 @@ function escapeAttr(str) {
 // ---------- inicialização ----------
 
 function init() {
+  FileUI.onFileChanged = () => saveState();
   document.getElementById('btn-new-project').addEventListener('click', createProject);
   document.getElementById('btn-export').addEventListener('click', exportBackup);
 

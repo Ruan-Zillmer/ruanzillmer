@@ -48,7 +48,8 @@ Cada **etapa** também aceita arquivos (vários, se quiser guardar revisões). C
 
 - **Formatos 3D**: STEP/STP, IGES/IGS, BREP, STL, OBJ, GLB/GLTF, 3MF, PLY. (STEP e IGES são os que o SolidWorks, Inventor, Fusion e similares exportam como "neutros" — é o formato recomendado.)
 - **Também abre no navegador**: PDF e imagens (PNG, JPG...). Qualquer outro formato (ex: `.sldprt`, `.dwg`) é guardado no servidor e pode ser baixado, mas não tem visualização — exporte como STEP para visualizar.
-- **Ferramentas do visualizador**: vistas Iso/Frente/Topo/Direita, arestas, malha (wireframe), grade, câmera ortogonal, **corte por plano** (eixo X/Y/Z com controle deslizante), dimensões gerais (X × Y × Z, em mm para STEP/IGES) e **captura de imagem** da vista atual.
+- **Girar o modelo**: se o desenho abrir de cabeça para baixo ou deitado (cada programa de CAD guarda o "lado de cima" de um jeito), use os botões **Girar** (X 90°, Y 90°, Z 90°, **Inverter**, **Original**). A posição escolhida fica salva só para aquele arquivo, na hora de visualizar — o arquivo em si nunca é alterado.
+- **Ferramentas do visualizador**: vistas Iso/Frente/Topo/Direita, arestas, malha (wireframe), grade (desligada por padrão), câmera ortogonal, **corte por plano** (eixo X/Y/Z com controle deslizante), dimensões gerais (X × Y × Z, em mm para STEP/IGES) e **captura de imagem** da vista atual.
 - Arquivos grandes: o envio mostra uma barra de progresso. O limite padrão é 1 GB por arquivo; para mudar, defina a variável `MAX_UPLOAD_MB` antes de iniciar (ex: `set MAX_UPLOAD_MB=2048` e depois `python servidor.py`).
 - Os arquivos ficam em `dados/files/` e só quem tem acesso ao projeto (dono e administradores) consegue baixá-los — a verificação é feita no servidor.
 - O visualizador funciona **sem internet** (todas as bibliotecas já vêm na pasta `vendor/`). Se um dia precisar reconstruí-lo, veja `vendor-src/` (só aí é preciso Node.js; para usar o sistema, não).
